@@ -22,7 +22,7 @@ RUN git init /tmp/frappe && git -C /tmp/frappe remote add origin https://github.
     && git -C /tmp/frappe fetch --depth 1 origin ${FRAPPE_REF} \
     && git -C /tmp/frappe checkout -b version-16 FETCH_HEAD \
     && bench init frappe-bench --frappe-path /tmp/frappe --frappe-branch version-16 \
-       --python /usr/local/bin/python3 --skip-assets --skip-redis-config-generation \
+       --python /usr/local/bin/python3 --no-backups --skip-assets --skip-redis-config-generation \
     && rm -rf /tmp/frappe
 WORKDIR /home/frappe/frappe-bench
 COPY --chown=frappe:frappe . apps/crm
