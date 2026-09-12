@@ -142,6 +142,10 @@ class GoogleAuthTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             auth.before_request()
 
+    def test_health_path_is_public(self):
+        self.f.request.path = auth.HEALTH
+        auth.before_request()
+
 
 if __name__ == '__main__':
     unittest.main()

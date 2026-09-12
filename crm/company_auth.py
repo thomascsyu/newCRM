@@ -19,6 +19,7 @@ from crm.security.workspace import company_email, normalize_domain, public_origi
 
 CALLBACK = "/api/method/crm.company_auth.callback"
 START = "/api/method/crm.company_auth.start"
+HEALTH = "/api/method/crm.company_auth.health"
 COOKIE = "__Host-crm_oauth"
 
 
@@ -146,8 +147,7 @@ def before_request():
     if request.headers.get("Authorization"):
         _deny("API token authentication is disabled for this internal CRM.")
     path = request.path.rstrip("/") or "/"
-    public = {"/", "/login", "/company-login", START, CALLBACK,
-              "/api/method/crm.company_auth.health", "/api/method/logout"}
+    public = {"/", "/login", "/company-login", START, CALLBACK, HEALTH, "/api/method/logout"}
     # Prevent ?cmd=... dispatch from turning a public page into a guest API gateway.
     if frappe.form_dict.get("cmd") and path in public and frappe.form_dict.cmd != "logout":
         _deny()
