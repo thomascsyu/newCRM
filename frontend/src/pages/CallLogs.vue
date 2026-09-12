@@ -52,6 +52,8 @@
     v-else-if="callLogs.data && !rows.length"
     name="Call Logs"
     :icon="PhoneIcon"
+    :actionLabel="__('Create')"
+    @action="createCallLog"
   />
   <CallLogDetailModal
     v-model="showCallLogDetailModal"

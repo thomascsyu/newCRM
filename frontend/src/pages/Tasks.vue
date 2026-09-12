@@ -184,6 +184,8 @@
     v-else-if="tasks.data && !rows.length"
     name="Tasks"
     :icon="Email2Icon"
+    :actionLabel="__('Create')"
+    @action="createTask()"
   />
   <DeleteLinkedDocModal
     v-if="showDeleteTaskModal"

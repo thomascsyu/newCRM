@@ -259,6 +259,8 @@
     v-else-if="leads.data && !rows.length"
     name="Leads"
     :icon="LeadsIcon"
+    :actionLabel="__('Create')"
+    @action="showLeadModal = true"
   />
   <LeadModal
     v-if="showLeadModal"

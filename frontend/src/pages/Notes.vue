@@ -31,7 +31,7 @@
       <div
         v-for="note in notes.data.data"
         :key="note.name"
-        class="group flex h-56 cursor-pointer flex-col justify-between gap-2 rounded-lg border px-5 py-4 shadow-sm hover:bg-surface-sidebar"
+        class="group flex h-56 cursor-pointer flex-col justify-between gap-2 rounded-lg border px-5 py-4 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-outline-gray-3 hover:shadow-md hover:bg-surface-sidebar"
         @click="editNote(note.name)"
       >
         <div class="flex items-center justify-between">
@@ -94,7 +94,13 @@
     }"
     @loadMore="() => loadMore++"
   />
-  <EmptyState v-else name="Notes" :icon="NoteIcon" />
+  <EmptyState
+    v-else
+    name="Notes"
+    :icon="NoteIcon"
+    :actionLabel="__('Create')"
+    @action="createNote"
+  />
 </template>
 
 <script setup>

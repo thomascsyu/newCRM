@@ -51,6 +51,8 @@
     v-else-if="organizations.data && !rows.length"
     name="Organizations"
     :icon="OrganizationsIcon"
+    :actionLabel="__('Create')"
+    @action="showOrganizationModal = true"
   />
   <OrganizationModal
     v-if="showOrganizationModal"
