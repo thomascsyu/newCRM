@@ -164,6 +164,7 @@
 <script setup>
 import BrushCleaningIcon from '~icons/lucide/brush-cleaning'
 import LucideLayoutDashboard from '~icons/lucide/layout-dashboard'
+import LucidePackage from '~icons/lucide/package'
 import CRMLogo from '@/components/Icons/CRMLogo.vue'
 import InviteIcon from '@/components/Icons/InviteIcon.vue'
 import ConvertIcon from '@/components/Icons/ConvertIcon.vue'
@@ -263,6 +264,11 @@ const links = [
     to: 'Organizations',
   },
   {
+    label: 'Products',
+    icon: LucidePackage,
+    to: 'Products',
+  },
+  {
     label: 'Notes',
     icon: NoteIcon,
     to: 'Notes',
@@ -345,6 +351,8 @@ function getIcon(routeName, icon) {
       return ContactsIcon
     case 'Organizations':
       return OrganizationsIcon
+    case 'Products':
+      return LucidePackage
     case 'Notes':
       return NoteIcon
     case 'Call Logs':
@@ -639,6 +647,7 @@ const articles = ref([
       { name: 'deal', title: __('Deal') },
       { name: 'contact', title: __('Contact') },
       { name: 'organization', title: __('Organization') },
+      { name: 'product', title: __('Product') },
       { name: 'note', title: __('Note') },
       { name: 'task', title: __('Task') },
       { name: 'call-log', title: __('Call Log') },
