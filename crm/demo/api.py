@@ -12,7 +12,10 @@ DEMO_ACTIVITIES_KEY = "crm_demo_activities"
 DEMO_DEALS_KEY = "crm_demo_deals"
 
 
+@frappe.whitelist()
 def create_demo_data(_args: dict | None = None):
+	frappe.only_for(["Sales Manager", "System Manager"], True)
+
 	if frappe.db.get_default(DEMO_STATE_KEY):
 		return
 
