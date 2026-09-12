@@ -5,6 +5,7 @@ import { useAttachments } from '@/composables/useAttachments'
 import { showSettings, activeSettingsPage } from '@/composables/settings'
 import { runSequentially, parseAssignees, sanitizeText } from '@/utils'
 import { findMissingMandatory } from '@/utils/fieldTransforms'
+import { getValidationErrorMessage } from '@/utils/validationError'
 import {
   getFetchSource,
   getFieldsToFetch,
@@ -132,7 +133,6 @@ export function useDocument(doctype, docname, resourceOverrides = {}) {
       }
 
       // Override the submit function to trigger validation before submitting
-      // TODO: fix validate function to return error message instead of throwing error in frappe-ui and remove try-catch block here
       const _save = documentsCache[doctype][docname].save
       const _originalSubmit = _save.submit
       _save.submit = async function (...args) {
@@ -140,6 +140,8 @@ export function useDocument(doctype, docname, resourceOverrides = {}) {
           await triggerOnValidate()
         } catch (err) {
           console.error(err)
+          const message = getValidationErrorMessage(err)
+          if (message) toast.error(message)
           return
         }
         const mandatory = checkMandatory(documentsCache[doctype][docname].doc)

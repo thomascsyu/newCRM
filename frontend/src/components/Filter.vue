@@ -174,6 +174,7 @@ import {
 import { h, computed, onMounted } from 'vue'
 import { isMobileView } from '@/composables/settings'
 import { getFormat } from '@/utils'
+import { serializeAssignFilter } from '@/utils/assignFilters'
 
 const typeCheck = ['Check']
 const typeLink = ['Link', 'Dynamic Link']
@@ -311,8 +312,9 @@ function getOperators(fieldtype, fieldname) {
     )
   }
   if (fieldname === '_assign') {
-    // TODO: make equals and not equals work
     options = [
+      { label: __('Equals'), value: 'equals' },
+      { label: __('Not equals'), value: 'not equals' },
       { label: __('Like'), value: 'like' },
       { label: __('Not like'), value: 'not like' },
       { label: __('Is'), value: 'is' },
@@ -405,7 +407,7 @@ function getOperators(fieldtype, fieldname) {
 }
 
 function getValueControl(f) {
-  const { field, operator } = f
+  const { field, operator, fieldname } = f
   const { fieldtype, options } = field
   if (operator == 'is') {
     return h(Combobox, {
@@ -430,6 +432,11 @@ function getValueControl(f) {
       modelValue: f.value,
       'onUpdate:modelValue': (v) => updateValue(v, f),
     })
+  } else if (
+    fieldname === '_assign' &&
+    !['like', 'not like', 'in', 'not in', 'is'].includes(operator)
+  ) {
+    return h(Link, { class: 'form-control', doctype: 'User', value: f.value })
   } else if (['like', 'not like', 'in', 'not in'].includes(operator)) {
     return h(FormControl, { type: 'text' })
   } else if (typeSelect.includes(fieldtype) || typeCheck.includes(fieldtype)) {
@@ -592,7 +599,13 @@ function apply() {
 function parseFilters(filters) {
   const filtersArray = Array.from(filters)
   const obj = filtersArray.map(transformIn).reduce((p, c) => {
-    if (['equals', '='].includes(c.operator)) {
+    const assignFilter =
+      c.fieldname === '_assign'
+        ? serializeAssignFilter(c.operator, c.value)
+        : null
+    if (assignFilter) {
+      p[c.fieldname] = assignFilter
+    } else if (['equals', '='].includes(c.operator)) {
       p[c.fieldname] =
         c.value == 'Yes' ? true : c.value == 'No' ? false : c.value
     } else {
