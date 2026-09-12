@@ -161,6 +161,15 @@ Then verify Google login with the administrator, rejection of an unrelated Googl
 
 Use the application Email settings to configure an outgoing email account before inviting staff. Google login alone does not configure Gmail sending. Send an invitation to a company employee and verify delivery and Google access.
 
+## Logs and request correlation
+
+All logs go to container stdout/stderr, visible in Zeabur's log viewer without a shell into the container:
+
+- nginx access log: one JSON line per HTTP request (method, path, status, timing, client IP, `request_id`). Never includes the query string, so OAuth `code`/`state` values never reach logs.
+- `crm.audit` (JSON, stdout): sign-in attempts — `auth_start`, `auth_success` (with the signed-in email), and `auth_denied` (with the reason, e.g. wrong domain, disabled account, no CRM role). This is where to look for "why was I signed out" or "who is hitting the login endpoint."
+- Every response carries an `X-Request-Id` header. Match that value against `request_id` in the nginx access log and `crm.audit` entries to trace one request end to end.
+- Frappe's own file logs (errors, background job tracebacks) are unchanged and still written under the `sites` volume; they are not part of this stdout stream and need a shell (or `bench --site crm.internal doctor`) to inspect.
+
 ## Troubleshooting
 
 | Symptom | Check/action |

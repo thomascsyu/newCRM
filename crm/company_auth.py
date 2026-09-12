@@ -15,6 +15,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 from frappe.rate_limiter import rate_limit
 
+from crm.observability import event as audit_event
 from crm.security.workspace import company_email, normalize_domain, public_origin, validate_claims, WorkspaceIdentityError
 
 CALLBACK = "/api/method/crm.company_auth.callback"
@@ -36,6 +37,7 @@ def configuration():
 
 
 def _deny(message="Sign in with your company Google Workspace account."):
+    audit_event("auth_denied", reason=message)
     frappe.throw(message, frappe.AuthenticationError)
 
 
@@ -54,6 +56,7 @@ def start():
     }, expires_in_sec=600)
     frappe.local.cookie_manager.set_cookie(COOKIE, binding, secure=True, httponly=True, samesite="Lax", max_age=600)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    audit_event("auth_start")
     _redirect("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
         "client_id": client_id, "redirect_uri": origin + CALLBACK,
         "response_type": "code", "scope": "openid email profile", "state": state,
@@ -104,6 +107,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
     if not user.get("company_google_subject"):
         frappe.db.set_value("User", email, "company_google_subject", claims["sub"])
     frappe.flags.company_google_verified = email
+    audit_event("auth_success", email=email)
     frappe.local.login_manager.login_as(email)
     # An expired incoming session may have queued cookie deletions during request
     # initialization. Do not erase the new verified session when cookies flush.
