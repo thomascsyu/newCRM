@@ -1,0 +1,17 @@
+.git
+.pi
+node_modules
+**/node_modules
+**/__pycache__
+**/*.pyc
+.env
+.env.*
+!.env.example
+sites
+logs
+work
+outputs
+frontend/coverage
+playwright-report
+test-results
+crm/public/frontend

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Company CRM — Sign in</title>
+  <style>
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:#f5f7fa; color:#17202a; font:16px/1.6 system-ui,sans-serif; }
+    main { background:white; padding:48px; border:1px solid #e2e7ee; border-radius:16px; max-width:380px; margin:24px; box-shadow:0 12px 40px #17202a08; }
+    h1 { font-size:28px; letter-spacing:-.03em; margin:0 0 12px; }
+    p { color:#526171; margin:0 0 28px; }
+    a { display:block; text-align:center; border-radius:8px; padding:12px 20px; background:#17202a; color:white; text-decoration:none; font-weight:600; }
+    a:focus-visible { outline:3px solid #4285f4; outline-offset:4px; }
+    small { display:block; margin-top:24px; color:#526171; }
+  </style>
+</head>
+<body><main>
+  <h1>Company CRM</h1>
+  <p>Manage your client relationships, opportunities and follow-ups.</p>
+  {% if logged_in %}<a href="/crm">Open CRM</a>
+  {% else %}<a href="{{ login_url }}">Sign in with Google</a>{% endif %}
+  <small>For authorized employees only. Use your company Google Workspace account. Contact your administrator if you need access.</small>
+</main></body>
+</html>

@@ -1,0 +1,16 @@
+node_modules/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+sites/
+logs/
+frontend/coverage/
+crm/public/frontend/
+playwright-report/
+test-results/
+e2e/.auth/
+.DS_Store
+crm/www/crm.html
+*.mo
