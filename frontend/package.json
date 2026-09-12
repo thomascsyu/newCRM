@@ -19,6 +19,7 @@
     "@framework/ui": "link:../../frappe/ui",
     "@tiptap/core": "^3.26.0",
     "@tiptap/extension-paragraph": "^3.26.0",
+    "@tiptap/pm": "^3.26.0",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vitejs/plugin-vue-jsx": "^5.1.6",
     "@vueuse/integrations": "^10.3.0",
