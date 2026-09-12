@@ -1,6 +1,7 @@
 import { createResource } from 'frappe-ui'
 import { noValueFieldTypes, standardFieldsMeta } from '@/utils/model.js'
 import { formatCurrency, formatNumber } from '@/utils/numberFormat.js'
+import { resolveCurrency } from '@/utils/currency.js'
 import { computed, reactive } from 'vue'
 
 const doctypesMeta = reactive({})
@@ -60,13 +61,12 @@ export function getMeta(doctype) {
     let precision = df?.precision || null
 
     if (df && df.options) {
-      if (df.options.indexOf(':') != -1) {
-        // TODO: Handle this case
-      } else if (doc && doc[df.options]) {
-        currency = doc[df.options]
-      } else if (parentDoc && parentDoc[df.options]) {
-        currency = parentDoc[df.options]
-      }
+      currency = resolveCurrency(
+        df.options,
+        doc,
+        parentDoc,
+        window.sysdefaults.currency || 'USD',
+      )
     }
 
     return formatCurrency(doc[fieldname], '', currency, precision)

@@ -75,8 +75,11 @@ export function getScript(doctype, view = 'Form') {
     helpers.formDialog = renderFieldLayoutDialog
 
     helpers.throwError = (message) => {
-      toast.error(message || __('An error occurred'))
-      throw new Error(message || __('An error occurred'))
+      const text = message || __('An error occurred')
+      toast.error(text)
+      const err = new Error(text)
+      err.alreadyToasted = true
+      throw err
     }
 
     let scriptDefs = doctypeScripts[doctype]

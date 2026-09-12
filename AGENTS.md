@@ -50,6 +50,9 @@ they run as evaluated strings in the browser.
 |---|---|
 | `frontend/src/utils/fieldTransforms.js` | `processField()`, `findMissingMandatory()`, `parseLinkFilters()` — pure, tested |
 | `frontend/src/utils/expressions.js` | `evaluateDependsOnValue()`, `evaluateExpression()` |
+| `frontend/src/utils/assignFilters.js` | `_assign` equals/not-equals → LIKE/NOT LIKE |
+| `frontend/src/utils/currency.js` | `resolveCurrency()` for Desk currency `options` |
+| `frontend/src/utils/validationError.js` | `getValidationErrorMessage()` for save validate |
 
 ### Meta & stores
 | File | Role |
@@ -67,7 +70,7 @@ yarn test:run      # single run
 yarn test          # watch mode
 ```
 
-- **118 tests · ~250ms** — all must pass before committing
+- **183 tests · ~250ms** — all must pass before committing
 - Location: `frontend/tests/unit/`
 - Only pure utility functions are unit-tested (no Vue component tests yet)
 - Add tests in `tests/unit/` when adding pure logic to `src/utils/`

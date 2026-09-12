@@ -5,6 +5,7 @@
     </div>
     <div class="flex gap-3">
       <div
+        v-if="canAddSampleData"
         class="flex flex-col px-6 pt-13 pb-7 justify-between bg-surface-gray-1 rounded-2xl items-center space-y-2 size-56"
       >
         <div class="flex flex-col items-center gap-2.5">
@@ -21,7 +22,13 @@
             {{ __('Start with sample 10 leads') }}
           </div>
         </div>
-        <Button variant="outline" :label="__('Add Sample Data')" />
+        <Button
+          variant="outline"
+          :label="__('Add Sample Data')"
+          :loading="creatingDemoData.loading"
+          :disabled="creatingDemoData.loading"
+          @click="createDemoData"
+        />
       </div>
       <div
         class="flex flex-col px-6 pt-13 pb-7 justify-between bg-surface-gray-1 rounded-2xl items-center space-y-2 size-56"
@@ -29,10 +36,14 @@
         <div class="flex flex-col items-center gap-2.5">
           <GoogleIcon class="" />
           <div class="text-p-base text-ink-gray-8 text-center">
-            {{ __('Sync your Contacts, Email and Calendars') }}
+            {{ __('Set up outgoing email for invitations and messages') }}
           </div>
         </div>
-        <Button variant="outline" :label="__('Connect your Email')" />
+        <Button
+          variant="outline"
+          :label="__('Connect your Email')"
+          @click="openEmailSettings"
+        />
       </div>
     </div>
     <Button
@@ -47,8 +58,24 @@
 import AvatarIcon from '@/components/Icons/AvatarIcon.vue'
 import GoogleIcon from '@/components/Icons/GoogleIcon.vue'
 import LeadModal from '@/components/Modals/LeadModal.vue'
-import { ref } from 'vue'
+import { useDemoData } from '@/composables/demoData'
+import { showSettings, activeSettingsPage } from '@/composables/settings'
+import { usersStore } from '@/stores/users'
+import { computed, ref } from 'vue'
 
-const name = ref('John Doe')
+const { getUser, isManager } = usersStore()
+const { createDemoData, creatingDemoData } = useDemoData()
+const canAddSampleData = computed(() => isManager())
+
+const name = computed(() => {
+  const user = getUser()
+  return user?.first_name || user?.full_name || user?.email || __('there')
+})
+
 const showLeadModal = ref(false)
+
+function openEmailSettings() {
+  activeSettingsPage.value = 'Accounts'
+  showSettings.value = true
+}
 </script>

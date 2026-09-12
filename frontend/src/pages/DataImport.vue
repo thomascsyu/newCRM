@@ -42,6 +42,14 @@ const doctypeMap = {
     title: 'Call Log',
     listRoute: '/crm/call-logs',
   },
+  'FCRM Note': {
+    title: 'Notes',
+    listRoute: '/crm/notes',
+  },
+  'CRM Product': {
+    title: 'Products',
+    listRoute: '/crm/products',
+  },
 }
 
 usePageMeta(() => {

@@ -195,6 +195,10 @@ def add_default_fields_layout(force=False):
 			"doctype": "CRM Task",
 			"layout": '[{"name":"first_tab","sections":[{"name":"details_section","columns":[{"name":"column_X9sG","fields":["title","description"]}]},{"name":"assignment_section","columns":[{"name":"column_9XjK","fields":["priority","due_date"]},{"name":"column_7s8n","fields":["assigned_to","status"]}],"hideBorder":true}]}]',
 		},
+		"CRM Product-Quick Entry": {
+			"doctype": "CRM Product",
+			"layout": '[{"name":"details_section","columns":[{"name":"column_pCode","fields":["product_code","product_name","standard_rate"]},{"name":"column_pMeta","fields":["disabled","image","description"]}]}]',
+		},
 	}
 
 	sidebar_fields_layouts = {
@@ -504,6 +508,7 @@ def add_default_quick_filters():
 		"CRM Organization": ["organization_name", "no_of_employees", "territory", "industry"],
 		"CRM Task": ["title", "priority", "assigned_to", "status", "due_date"],
 		"CRM Call Log": ["type", "status", "from", "to"],
+		"CRM Product": ["product_code", "product_name", "standard_rate", "disabled"],
 	}
 
 	for quick_filter in quick_filters:

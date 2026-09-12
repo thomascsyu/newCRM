@@ -313,6 +313,8 @@ function getOperators() {
   }
   if (fieldname === '_assign') {
     options = [
+      { label: 'Equals', value: '==' },
+      { label: 'Not Equals', value: '!=' },
       { label: 'Like', value: 'like' },
       { label: 'Not Like', value: 'not like' },
       { label: 'Is', value: 'is' },

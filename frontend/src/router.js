@@ -4,7 +4,6 @@ import { usersStore } from '@/stores/users'
 import { sessionStore } from '@/stores/session'
 import { viewsStore } from '@/stores/views'
 
-let personaChecked = false
 export const PERSONA_DONE_KEY = 'crm_persona_captured'
 
 async function shouldCapturePersona() {
@@ -103,6 +102,12 @@ const routes = [
     component: () => import('@/pages/CallLogs.vue'),
   },
   {
+    alias: '/products',
+    path: '/products/view/:viewType?',
+    name: 'Products',
+    component: () => import('@/pages/Products.vue'),
+  },
+  {
     path: '/data-import',
     name: 'DataImportList',
     component: () => import('@/pages/DataImport.vue'),
@@ -180,23 +185,6 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  if (
-    isLoggedIn &&
-    isCrmUser() &&
-    !personaChecked &&
-    to.name !== 'Onboarding' &&
-    isAdminUser
-  ) {
-    personaChecked = true
-    try {
-      if (await shouldCapturePersona()) {
-        return next({ name: 'Onboarding' })
-      }
-    } catch (error) {
-      // fail open
-    }
-  }
-
   if (isLoggedIn && to.name !== 'Not Permitted' && !isCrmUser()) {
     next({ name: 'Not Permitted' })
   } else if (to.name === 'Not Permitted' && isLoggedIn && isCrmUser()) {
@@ -241,6 +229,7 @@ router.beforeEach(async (to, from, next) => {
       'Notes',
       'Tasks',
       'Call Logs',
+      'Products',
     ].includes(to.name) &&
     !to.query?.view
   ) {
@@ -259,6 +248,7 @@ router.beforeEach(async (to, from, next) => {
         Notes: 'FCRM Note',
         Tasks: 'CRM Task',
         'Call Logs': 'CRM Call Log',
+        Products: 'CRM Product',
       }
 
       const doctype = doctypeMap[to.name]
