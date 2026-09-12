@@ -233,6 +233,8 @@
     v-else-if="deals.data && !rows.length"
     name="Deals"
     :icon="DealsIcon"
+    :actionLabel="__('Create')"
+    @action="showDealModal = true"
   />
   <DealModal
     v-if="showDealModal"

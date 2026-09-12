@@ -5,7 +5,11 @@
       :class="widthClass"
       :style="{ top: top }"
     >
-      <Icon :icon="icon" class="size-7.5 text-ink-gray-5" />
+      <div
+        class="flex items-center justify-center rounded-full bg-surface-gray-2 p-3"
+      >
+        <Icon :icon="icon" class="size-6 text-ink-gray-5" />
+      </div>
       <div class="flex flex-col items-center gap-1">
         <span class="text-lg-medium text-ink-gray-8">
           {{ computedTitle }}
@@ -14,6 +18,14 @@
           {{ computedDescription }}
         </span>
       </div>
+      <Button
+        v-if="actionLabel"
+        class="mt-1"
+        variant="solid"
+        :label="actionLabel"
+        iconLeft="plus"
+        @click="emit('action')"
+      />
     </div>
   </div>
 </template>
@@ -31,7 +43,10 @@ const props = defineProps({
   },
   top: { type: String, default: '35%' },
   width: { type: String, default: 'md' },
+  actionLabel: { type: String, default: '' },
 })
+
+const emit = defineEmits(['action'])
 
 const computedTitle = computed(() => {
   return props.title ? props.title : __('No {0} Found', [__(props.name)])

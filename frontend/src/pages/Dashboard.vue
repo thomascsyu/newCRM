@@ -41,7 +41,9 @@
       </template>
     </LayoutHeader>
 
-    <div class="p-5 pb-2 flex items-center gap-4">
+    <div
+      class="flex flex-wrap items-center gap-3 border-b px-5 pb-4 pt-5 sm:gap-4"
+    >
       <Dropdown
         v-if="!showDatePicker"
         v-model="preset"
@@ -117,13 +119,19 @@
       </Link>
     </div>
 
-    <div class="w-full overflow-y-scroll">
+    <div class="w-full flex-1 overflow-y-scroll">
       <DashboardGrid
         v-if="!dashboardItems.loading && dashboardItems.data"
         v-model="dashboardItems.data"
-        class="pt-1"
+        class="pt-4"
         :editing="editing"
       />
+      <div
+        v-else-if="dashboardItems.loading"
+        class="flex h-full items-center justify-center pt-20"
+      >
+        <LoadingIndicator class="size-8 text-ink-gray-4" />
+      </div>
     </div>
   </div>
   <AddChartModal
@@ -157,6 +165,7 @@ import {
   DateRangePicker,
   Dropdown,
   Tooltip,
+  LoadingIndicator,
 } from 'frappe-ui'
 import { ref, reactive, computed, provide } from 'vue'
 

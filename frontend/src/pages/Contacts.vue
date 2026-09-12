@@ -51,6 +51,8 @@
     v-else-if="contacts.data && !rows.length"
     name="Contacts"
     :icon="ContactsIcon"
+    :actionLabel="__('Create')"
+    @action="showContactModal = true"
   />
   <ContactModal
     v-if="showContactModal"
