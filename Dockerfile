@@ -3,7 +3,6 @@ FROM node:24-bookworm-slim AS node
 FROM python:3.14-slim-trixie
 ARG FRAPPE_REF=988e54f3c4c291e2077a83809663f123731abe76
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 \
-    FRAPPE_DOCKER_BUILD=1 \
     PATH=/home/frappe/frappe-bench/env/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl ca-certificates passwd util-linux build-essential pkg-config libmariadb-dev mariadb-client \
@@ -22,7 +21,7 @@ WORKDIR /home/frappe
 RUN git init /tmp/frappe && git -C /tmp/frappe remote add origin https://github.com/frappe/frappe.git \
     && git -C /tmp/frappe fetch --depth 1 origin ${FRAPPE_REF} \
     && git -C /tmp/frappe checkout -b version-16 FETCH_HEAD \
-    && bench init frappe-bench --frappe-path /tmp/frappe --frappe-branch version-16 \
+    && FRAPPE_DOCKER_BUILD=1 bench init frappe-bench --frappe-path /tmp/frappe --frappe-branch version-16 \
        --python /usr/local/bin/python3 --no-procfile --no-backups --skip-assets --skip-redis-config-generation \
     && rm -rf /tmp/frappe
 WORKDIR /home/frappe/frappe-bench
