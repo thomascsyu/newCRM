@@ -11,10 +11,10 @@ spec:
     - key: CRM_DOMAIN
       type: STRING
       name: CRM hostname
-      description: Enter crm.gabrielconsultant.one without https or a path.
+      description: Enter isocrm.pro without https or a path.
   readme: |-
     # Gabriel Consultant CRM
-    Deploy once into a new project. Enter crm.gabrielconsultant.one for CRM_DOMAIN.
+    Deploy once into a new project. Enter isocrm.pro for CRM_DOMAIN.
     After import, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the crm service
     only, then restart it. CRM cannot start until both are configured.
     Bind the custom hostname and complete the DNS records shown by Zeabur.

@@ -20,7 +20,7 @@ The CRM container contains web, realtime, worker and scheduler processes because
 2. Create an OAuth client of type **Web application**.
 3. Set an authorized redirect URI of:
 
-   `https://crm.gabrielconsultant.one/api/method/crm.company_auth.callback`
+   `https://isocrm.pro/api/method/crm.company_auth.callback`
 
    This is the exact redirect URI for the company deployment. Do not use the internal site identifier in this public URL.
 4. Configure the variables below in the CRM service. Use Zeabur secret variables for credentials; never commit `.env`.
@@ -34,7 +34,7 @@ Login requests use OpenID Connect, state, a browser-bound HttpOnly cookie, nonce
 |---|---|
 | `COMPANY_EMAIL_DOMAIN` | `gabriel.hk`. No `@`, wildcard, subdomain matching or list. |
 | `COMPANY_ADMIN_EMAIL` | `thomas@gabriel.hk` (initial administrator). |
-| `CRM_PUBLIC_URL` | `https://crm.gabrielconsultant.one`; no path. |
+| `CRM_PUBLIC_URL` | `https://isocrm.pro`; no path. |
 | `GOOGLE_CLIENT_ID` | OAuth web client ID. |
 | `GOOGLE_CLIENT_SECRET` | OAuth client secret. |
 | `DB_HOST` | MariaDB service's private hostname shown by Zeabur. |
@@ -54,10 +54,10 @@ The root [`zeabur.yaml`](../zeabur.yaml) creates `mariadb`, `redis` and `crm` in
 From your clone of this repository, run:
 
 ```sh
-npx zeabur@latest template deploy -f zeabur.yaml --var CRM_DOMAIN=crm.gabrielconsultant.one
+npx zeabur@latest template deploy -f zeabur.yaml --var CRM_DOMAIN=isocrm.pro
 ```
 
-Sign in when prompted and select the intended project/server. The command supplies `crm.gabrielconsultant.one` as `CRM_DOMAIN`. This is a string setting; bind the custom hostname separately under Networking after import. Grant the Zeabur GitHub app access to `thomascsyu/newCRM` if prompted. The template uses verified GitHub repository ID `1367346335`, branch `main`, and the repository root Dockerfile.
+Sign in when prompted and select the intended project/server. The command supplies `isocrm.pro` as `CRM_DOMAIN`. This is a string setting; bind the custom hostname separately under Networking after import. Grant the Zeabur GitHub app access to `thomascsyu/newCRM` if prompted. The template uses verified GitHub repository ID `1367346335`, branch `main`, and the repository root Dockerfile.
 
 After import, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` under **crm → Variables**, then restart CRM. They are intentionally empty in the template and are not exposed to other services. A first-start message asking for these variables is expected until they are set. Generated database and Redis passwords are wired automatically; do not replace them with literal `${PASSWORD}` strings in the dashboard.
 
@@ -115,7 +115,7 @@ The template mounts `/usr/local/etc/redis/company.conf` with environment substit
 | Dockerfile | Root `Dockerfile`; automatic detection |
 | Install/build/start overrides | Leave empty; preserve the Dockerfile entrypoint |
 | Public HTTP port | `8080` (`PORT=8080`) |
-| Public hostname | `crm.gabrielconsultant.one` |
+| Public hostname | `isocrm.pro` |
 | Volume ID → mount | `sites` → `/home/frappe/frappe-bench/sites` |
 | Health check | HTTP on `web`, path `/api/method/crm.company_auth.health` |
 | Dependencies | `mariadb`, `redis` |
@@ -133,11 +133,11 @@ Get each dependency's actual private hostname from **Networking → Private**; r
 
 ## DNS, HTTPS and Google callback
 
-1. Open **crm → Networking**, bind `crm.gabrielconsultant.one` to the HTTP `web` port, and copy the DNS instructions Zeabur displays.
-2. In the DNS zone for `gabrielconsultant.one`, add the record for host `crm` with the exact type and target shown by Zeabur. For a CNAME instruction, use that CNAME target; if your server requires an A record, use its displayed address. No project-specific target/IP can be filled in before the service exists.
-3. Resolve any conflicting record for `crm` and wait for Zeabur to verify the hostname and issue its HTTPS certificate. Leave other company DNS records unchanged.
-4. Keep `CRM_PUBLIC_URL=https://crm.gabrielconsultant.one` and verify the Google authorized redirect URI is exactly `https://crm.gabrielconsultant.one/api/method/crm.company_auth.callback`.
-5. Open `https://crm.gabrielconsultant.one/company-login`. Use `thomas@gabriel.hk`. The hostname's domain and the email domain intentionally differ.
+1. Open **crm → Networking**, bind `isocrm.pro` to the HTTP `web` port, and copy the DNS instructions Zeabur displays.
+2. In the DNS zone for `isocrm.pro`, add an **A** record for the root host **@** pointing to **43.159.44.155**, the current Zeabur server address. If moving to another server later, use the address shown by Zeabur.
+3. Resolve any conflicting record for the root host `@` and wait for Zeabur to verify the hostname and issue its HTTPS certificate. Leave other company DNS records unchanged.
+4. Keep `CRM_PUBLIC_URL=https://isocrm.pro` and verify the Google authorized redirect URI is exactly `https://isocrm.pro/api/method/crm.company_auth.callback`.
+5. Open `https://isocrm.pro/company-login`. Use `thomas@gabriel.hk`. The hostname's domain and the email domain intentionally differ.
 
 Zeabur terminates TLS; Nginx listens on port 8080 inside the service. Do not expose Gunicorn port 8000 or realtime port 9000 separately. Nginx forwards `/socket.io` on the same public HTTPS hostname.
 
@@ -148,7 +148,7 @@ Bootstrap validates configuration, waits for dependency connectivity, creates `c
 Check from your workstation:
 
 ```sh
-curl --fail --silent --show-error https://crm.gabrielconsultant.one/api/method/crm.company_auth.health
+curl --fail --silent --show-error https://isocrm.pro/api/method/crm.company_auth.health
 ```
 
 Expect a JSON response containing `"status":"ok"`. In the CRM service terminal, inspect all five supervised processes:

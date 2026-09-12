@@ -8,7 +8,7 @@ Source repository: [thomascsyu/newCRM](https://github.com/thomascsyu/newCRM).
 
 | Setting | Value |
 |---|---|
-| Planned production address | `https://crm.gabrielconsultant.one` |
+| Planned production address | `https://isocrm.pro` |
 | Allowed Google Workspace email domain | `gabriel.hk` |
 | Initial administrator | `thomas@gabriel.hk` |
 | Internal site identifier | `crm.internal` |
@@ -33,7 +33,7 @@ Accounts must be provisioned, enabled, assigned a CRM role and belong to `@gabri
 Create a Google OAuth **Web application** client with an **Internal** consent audience in the company Workspace organization. Register this exact authorized redirect URI:
 
 ```text
-https://crm.gabrielconsultant.one/api/method/crm.company_auth.callback
+https://isocrm.pro/api/method/crm.company_auth.callback
 ```
 
 Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the CRM service's environment. Keep credentials in Zeabur secret variables or an untracked local `.env` file.
@@ -55,7 +55,7 @@ The root [Dockerfile](Dockerfile) builds the application and its pinned backend 
 The [`zeabur.yaml`](zeabur.yaml) template defines all three services, their volumes, private database connections, generated passwords, dependencies and health checks. From this repository:
 
 ```sh
-npx zeabur@latest template deploy -f zeabur.yaml --var CRM_DOMAIN=crm.gabrielconsultant.one
+npx zeabur@latest template deploy -f zeabur.yaml --var CRM_DOMAIN=isocrm.pro
 ```
 
 Choose the intended project/server; the command supplies the company hostname. Authorize the Zeabur GitHub app for `thomascsyu/newCRM`. Import the template once into a new project.
@@ -63,7 +63,7 @@ Choose the intended project/server; the command supplies the company hostname. A
 After import:
 
 1. Open **crm → Variables** and enter `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, then restart CRM. Startup intentionally stops until these are supplied.
-2. Bind `crm.gabrielconsultant.one` under **crm → Networking** and create the exact DNS record shown by Zeabur. Wait for the HTTPS certificate.
+2. Bind `isocrm.pro` under **crm → Networking** and create the exact DNS record shown by Zeabur. Wait for the HTTPS certificate.
 3. Keep one replica per service. Configure available runtime memory and volume capacity in the dashboard; the template does not allocate a server or set resource limits.
 4. Verify `/api/method/crm.company_auth.health`, sign in as `thomas@gabriel.hk`, create a lead/task and check data after a restart.
 

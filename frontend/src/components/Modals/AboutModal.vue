@@ -53,7 +53,7 @@ let show = defineModel({ type: Boolean })
 let links = [
   {
     label: __('Website'),
-    url: 'https://crm.gabrielconsultant.one',
+    url: 'https://isocrm.pro',
     icon: LucideGlobe,
   },
   {
