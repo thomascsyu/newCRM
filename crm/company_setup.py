@@ -27,7 +27,7 @@ def configure():
     settings = frappe.get_single("FCRM Settings")
     if not settings.brand_name or settings.brand_name in ("CRM", "Frappe CRM"):
         settings.brand_name = "Gabriel Consultant CRM"
-    settings.dropdown_items = [row for row in settings.dropdown_items if row.name1 not in ("app_selector", "login_to_fc")]
+    settings.dropdown_items = [row for row in (settings.dropdown_items or []) if row.name1 not in ("app_selector", "login_to_fc")]
     settings.save(ignore_permissions=True)
     frappe.clear_cache()
 

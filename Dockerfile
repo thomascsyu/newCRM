@@ -15,7 +15,7 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
     && npm install -g yarn@1.22.22 \
     && pip install --no-cache-dir frappe-bench==5.31.0 \
-    && useradd -m -s /bin/bash frappe
+    && useradd -m -u 1000 -s /bin/bash frappe
 USER frappe
 WORKDIR /home/frappe
 RUN git init /tmp/frappe && git -C /tmp/frappe remote add origin https://github.com/frappe/frappe.git \
@@ -33,11 +33,13 @@ RUN env/bin/pip install --no-cache-dir -e apps/crm \
     && mkdir -p /home/frappe/image-assets \
     && cp -a sites/assets/. /home/frappe/image-assets/
 USER root
-COPY deployment/nginx.conf /etc/nginx/nginx.conf
+COPY deployment/nginx.conf /etc/nginx/nginx.conf.template
 COPY deployment/supervisord.conf /etc/supervisor/crm.conf
-RUN chmod +x apps/crm/deployment/entrypoint.sh \
-    && mkdir -p /var/log/supervisor /var/lib/nginx /run/nginx
+RUN chmod +x apps/crm/deployment/entrypoint.sh apps/crm/deployment/startup_probe.py \
+    && mkdir -p /var/log/supervisor /var/lib/nginx/body /var/lib/nginx/proxy \
+       /var/lib/nginx/fastcgi /var/lib/nginx/uwsgi /var/lib/nginx/scgi /run/nginx \
+    && chown -R frappe:frappe /var/lib/nginx /run/nginx /var/log/supervisor
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=600s \
-  CMD curl --fail --silent http://127.0.0.1:8080/api/method/crm.company_auth.health || exit 1
+  CMD curl --fail --silent http://127.0.0.1:${PORT:-8080}/api/method/crm.company_auth.health || exit 1
 ENTRYPOINT ["/home/frappe/frappe-bench/apps/crm/deployment/entrypoint.sh"]
