@@ -62,7 +62,7 @@ Choose the intended project/server; the command supplies the company hostname. A
 
 After import:
 
-1. Open **crm → Variables** and enter `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, then restart CRM. Startup intentionally stops until these are supplied.
+1. Open **crm → Variables** and enter `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. The container starts without them so Zeabur does not crash-loop; Google sign-in stays disabled until both are set. Restart CRM after saving the secrets.
 2. Bind `isocrm.pro` under **crm → Networking** and create the exact DNS record shown by Zeabur. Wait for the HTTPS certificate.
 3. Keep one replica per service. Configure available runtime memory and volume capacity in the dashboard; the template does not allocate a server or set resource limits.
 4. Verify `/api/method/crm.company_auth.health`, sign in as `thomas@gabriel.hk`, create a lead/task and check data after a restart.

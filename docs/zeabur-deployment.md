@@ -59,7 +59,7 @@ npx zeabur@latest template deploy -f zeabur.yaml --var CRM_DOMAIN=isocrm.pro
 
 Sign in when prompted and select the intended project/server. The command supplies `isocrm.pro` as `CRM_DOMAIN`. This is a string setting; bind the custom hostname separately under Networking after import. Grant the Zeabur GitHub app access to `thomascsyu/newCRM` if prompted. The template uses verified GitHub repository ID `1367346335`, branch `main`, and the repository root Dockerfile.
 
-After import, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` under **crm → Variables**, then restart CRM. They are intentionally empty in the template and are not exposed to other services. A first-start message asking for these variables is expected until they are set. Generated database and Redis passwords are wired automatically; do not replace them with literal `${PASSWORD}` strings in the dashboard.
+After import, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` under **crm → Variables**, then restart CRM. They are intentionally empty in the template and are not exposed to other services. The container starts and answers the health check without them; Google sign-in stays disabled until both are set. Generated database and Redis passwords are wired automatically; do not replace them with literal `${PASSWORD}` strings in the dashboard.
 
 The template can create configuration, but it cannot supply the company's Google credentials, change external DNS, choose a paid server for you, or verify a real Workspace login. The following settings complete that setup.
 
@@ -143,7 +143,7 @@ Zeabur terminates TLS; Nginx listens on port 8080 inside the service. Do not exp
 
 ## Startup and acceptance checks
 
-Bootstrap validates configuration, waits for dependency connectivity, creates `crm.internal` if absent, installs/migrates CRM, provisions the initial administrator if missing and enables the scheduler. An existing installation is backed up locally before migration. Application processes start only after bootstrap succeeds. The Docker health check allows 600 seconds for startup; that setting does not automatically control Zeabur's platform probe timing. Review platform deployment events if first installation exceeds its startup window.
+Bootstrap validates configuration, waits for dependency connectivity, creates `crm.internal` if absent, installs/migrates CRM, provisions the initial administrator if missing and enables the scheduler. An existing installation is backed up locally before migration. A temporary HTTP listener answers `/api/method/crm.company_auth.health` during that work so Zeabur's probe does not restart the pod. Application processes start only after bootstrap succeeds. The Docker health check allows 600 seconds for startup; that setting does not automatically control Zeabur's platform probe timing. Review platform deployment events if first installation exceeds its startup window.
 
 Check from your workstation:
 
@@ -165,7 +165,8 @@ Use the application Email settings to configure an outgoing email account before
 
 | Symptom | Check/action |
 |---|---|
-| Missing Google environment variable at startup | Set both OAuth variables on CRM, then restart it. |
+| Missing Google environment variable at startup | Set both OAuth variables on CRM, then restart it. The pod stays running; only sign-in is blocked. |
+| BackOff / CrashLoopBackOff on the CRM pod | The public port must answer during first-site creation. Confirm the image uses this repository's entrypoint (no start-command override), MariaDB/Redis are healthy, and `DB_HOST` / `REDIS_URL` are the private hostnames — not `${CONTAINER_HOSTNAME}` on CRM itself. |
 | MariaDB access denied | Match the stored bootstrap password on first creation; check private host/port and root host access. Changing an environment variable does not rotate an existing MariaDB password. |
 | Redis NOAUTH, invalid password or connection refused | Match config-file password and CRM URL, enable env substitution, and use the private hostname. |
 | Redis OOM/noeviction errors | Inspect queued jobs and memory, then increase Redis data and service memory limits. Do not discard the queue. |

@@ -16,7 +16,7 @@ spec:
     # Gabriel Consultant CRM
     Deploy once into a new project. Enter isocrm.pro for CRM_DOMAIN.
     After import, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the crm service
-    only, then restart it. CRM cannot start until both are configured.
+    only, then restart it. The service stays up without them; Google sign-in does not.
     Bind the custom hostname and complete the DNS records shown by Zeabur.
     Keep one replica of each service and preserve all three volumes.
     Full instructions: https://github.com/thomascsyu/newCRM/blob/main/docs/zeabur-deployment.md
