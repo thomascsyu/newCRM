@@ -9,7 +9,10 @@
     <div class="w-fit">
       <EmailProviderIcon
         :logo="emailIcon[accountData.service]"
-        :label="accountData.service"
+        :label="
+          services.find((s) => s.name === accountData.service)?.label ||
+          accountData.service
+        "
       />
     </div>
     <!-- banner for setting up email account -->

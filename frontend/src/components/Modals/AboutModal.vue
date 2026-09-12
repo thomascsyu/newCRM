@@ -5,7 +5,7 @@
         <div class="flex justify-center">
           <div class="flex flex-col items-center">
             <CRMLogo class="mb-3 size-12" />
-            <h3 class="text-2xl-semibold text-ink-gray-9">Frappe CRM</h3>
+            <h3 class="text-2xl-semibold text-ink-gray-9">Gabriel Consultant CRM</h3>
           </div>
         </div>
         <hr class="border-t my-3 mx-2" />
@@ -29,7 +29,12 @@
         </div>
         <hr class="border-t my-3 mx-2" />
         <p class="text-sm text-ink-gray-6 px-2 mt-2">
-          © Frappe Technologies Pvt. Ltd. and contributors
+          <a
+            href="https://github.com/thomascsyu/newCRM/blob/main/THIRD_PARTY_NOTICES.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline"
+          >{{ __('Open-source licenses and attribution') }}</a>
         </p>
       </div>
     </template>
@@ -48,27 +53,27 @@ let show = defineModel({ type: Boolean })
 let links = [
   {
     label: __('Website'),
-    url: 'https://frappe.io/crm',
+    url: 'https://crm.gabrielconsultant.one',
     icon: LucideGlobe,
   },
   {
     label: __('GitHub Repository'),
-    url: 'https://github.com/frappe/crm',
+    url: 'https://github.com/thomascsyu/newCRM',
     icon: GitHubIcon,
   },
   {
     label: __('Documentation'),
-    url: 'https://docs.frappe.io/crm',
+    url: 'https://github.com/thomascsyu/newCRM#readme',
     icon: LucideBookOpen,
   },
   {
     label: __('Report an Issue'),
-    url: 'https://github.com/frappe/crm/issues',
+    url: 'https://github.com/thomascsyu/newCRM/issues',
     icon: LucideBug,
   },
   {
     label: __('Contact Support'),
-    url: 'https://support.frappe.io',
+    url: 'mailto:thomas@gabriel.hk',
     icon: LucideHeadset,
   },
 ]

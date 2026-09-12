@@ -115,12 +115,12 @@ msgstr ""
 msgid "51-200"
 msgstr ""
 
-#. Paragraph text in the Frappe CRM Workspace
+#. Paragraph text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<b>META</b>"
 msgstr ""
 
-#. Paragraph text in the Frappe CRM Workspace
+#. Paragraph text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<b>SHORTCUTS</b>"
 msgstr ""
@@ -130,7 +130,7 @@ msgstr ""
 msgid "<p>Dear {{ lead_name }},</p>\\n\\n<p>This is a reminder for the payment of {{ grand_total }}.</p>\\n\\n<p>Thanks,</p>\\n<p>Frappé</p>"
 msgstr ""
 
-#. Header text in the Frappe CRM Workspace
+#. Header text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<span class=\"h5\"><b>PORTAL</b></span>"
 msgstr ""
@@ -637,7 +637,7 @@ msgstr ""
 msgid "Assignment"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Assignment Rule"
 msgstr ""
@@ -993,7 +993,7 @@ msgstr ""
 msgid "CRM Organization"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "CRM Portal Page"
 msgstr ""
@@ -1334,7 +1334,7 @@ msgstr ""
 msgid "Communication Status"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Communication Statuses"
 msgstr ""
@@ -1471,7 +1471,7 @@ msgstr ""
 
 #. Label of the contacts_tab (Tab Break) field in DocType 'CRM Deal'
 #. Label of the contacts (Table) field in DocType 'CRM Deal'
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/doctype/crm_deal/crm_deal.json
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/Contact.vue:259 frontend/src/pages/MobileContact.vue:221
@@ -1741,7 +1741,7 @@ msgstr ""
 msgid "Deal Status"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Deal Statuses"
 msgstr ""
@@ -1765,7 +1765,7 @@ msgstr ""
 msgid "Deal value"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/Deal.vue:496 frontend/src/pages/MobileContact.vue:297
 #: frontend/src/pages/MobileDeal.vue:386
@@ -2876,11 +2876,11 @@ msgstr ""
 
 #. Name of a Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
-msgid "Frappe CRM"
+msgid "Gabriel Consultant CRM"
 msgstr ""
 
 #: frontend/src/components/Layouts/AppSidebar.vue:608
-msgid "Frappe CRM mobile"
+msgid "Gabriel Consultant CRM mobile"
 msgstr ""
 
 #. Option for the 'Weekly Off' (Select) field in DocType 'CRM Holiday List'
@@ -3196,7 +3196,7 @@ msgstr ""
 msgid "Incoming call..."
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Industries"
 msgstr ""
@@ -3559,12 +3559,12 @@ msgstr ""
 msgid "Lead Owner cannot be same as the Lead Email Address"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Lead Sources"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Lead Statuses"
 msgstr ""
@@ -3602,7 +3602,7 @@ msgstr ""
 msgid "Lead to deal conversion pipeline"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/InvalidPage.vue:9 frontend/src/pages/Lead.vue:345
 #: frontend/src/pages/MobileLead.vue:293
@@ -4511,7 +4511,7 @@ msgstr ""
 msgid "Organization logo"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/MobileOrganization.vue:216
 #: frontend/src/pages/Organization.vue:258
@@ -5134,7 +5134,7 @@ msgstr ""
 #. Label of the sla (Link) field in DocType 'CRM Deal'
 #. Label of the sla_tab (Tab Break) field in DocType 'CRM Lead'
 #. Label of the sla (Link) field in DocType 'CRM Lead'
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/doctype/crm_deal/crm_deal.json
 #: crm/fcrm/doctype/crm_lead/crm_lead.json
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
@@ -5811,7 +5811,7 @@ msgstr ""
 msgid "Template updated successfully"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Territories"
 msgstr ""
@@ -6425,7 +6425,7 @@ msgid "You do not have Exotel Number set in your Telephony Agent"
 msgstr ""
 
 #: frontend/src/pages/NotPermitted.vue:12
-msgid "You do not have enough permissions to access Frappe CRM. Please contact your administrator if you believe this is an error."
+msgid "You do not have enough permissions to access Gabriel Consultant CRM. Please contact your administrator if you believe this is an error."
 msgstr ""
 
 #: crm/integrations/exotel/handler.py:93
@@ -6433,7 +6433,7 @@ msgid "You do not have mobile number set in your Telephony Agent"
 msgstr ""
 
 #: crm/www/crm.py:20
-msgid "You do not have permission to access Frappe CRM"
+msgid "You do not have permission to access Gabriel Consultant CRM"
 msgstr ""
 
 #: frontend/src/data/document.js:35

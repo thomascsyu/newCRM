@@ -14,16 +14,19 @@ def configure():
         "permlevel": 1, "unique": 1,
     }]})
     frappe.db.set_single_value("System Settings", {
-        "disable_user_pass_login": 1, "setup_complete": 1,
+        "disable_user_pass_login": 1, "setup_complete": 1, "app_name": "Gabriel Consultant CRM",
         "session_expiry": "08:00:00", "allow_login_using_mobile_number": 0,
         "allow_login_using_user_name": 0,
     })
-    frappe.db.set_single_value("Website Settings", {"disable_signup": 1, "home_page": "company-login"})
+    frappe.db.set_single_value("Website Settings", {"disable_signup": 1, "home_page": "company-login",
+        "app_name": "Gabriel Consultant CRM", "footer_powered": "Gabriel Consultant CRM"})
     frappe.db.set_single_value("FCRM Settings", "persona_captured", 1)
     if frappe.db.exists("DocType", "Social Login Key"):
         for name in frappe.get_all("Social Login Key", pluck="name"):
             frappe.db.set_value("Social Login Key", name, "enable_social_login", 0)
     settings = frappe.get_single("FCRM Settings")
+    if not settings.brand_name or settings.brand_name in ("CRM", "Frappe CRM"):
+        settings.brand_name = "Gabriel Consultant CRM"
     settings.dropdown_items = [row for row in settings.dropdown_items if row.name1 not in ("app_selector", "login_to_fc")]
     settings.save(ignore_permissions=True)
     frappe.clear_cache()

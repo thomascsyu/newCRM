@@ -16,7 +16,7 @@ const _settings = createDocumentResource({
 
 export function getSettings() {
   function setupBrand() {
-    brand.name = settings.value?.brand_name
+    brand.name = settings.value?.brand_name || 'Gabriel Consultant CRM'
     brand.logo = settings.value?.brand_logo
     brand.favicon = settings.value?.favicon
   }

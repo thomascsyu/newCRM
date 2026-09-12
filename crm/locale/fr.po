@@ -130,12 +130,12 @@ msgstr "501-1000"
 msgid "51-200"
 msgstr "51-200"
 
-#. Paragraph text in the Frappe CRM Workspace
+#. Paragraph text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<b>META</b>"
 msgstr "<b>META</b>"
 
-#. Paragraph text in the Frappe CRM Workspace
+#. Paragraph text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<b>SHORTCUTS</b>"
 msgstr "<b>RACCOURCIS</b>"
@@ -145,7 +145,7 @@ msgstr "<b>RACCOURCIS</b>"
 msgid "<p>Dear {{ lead_name }},</p>\\n\\n<p>This is a reminder for the payment of {{ grand_total }}.</p>\\n\\n<p>Thanks,</p>\\n<p>Frappé</p>"
 msgstr "<p>Cher·ère {{ lead_name }},</p>\\n\\n<p>Ceci est un rappel pour le paiement de {{ grand_total }}.</p>\\n\\n<p>Merci,</p>\\n<p>Frappé</p>"
 
-#. Header text in the Frappe CRM Workspace
+#. Header text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<span class=\"h5\"><b>PORTAL</b></span>"
 msgstr "<span class=\"h5\"><b>PORTAIL</b></span>"
@@ -782,7 +782,7 @@ msgstr "Jours d'attribution"
 msgid "Assignment Days are required"
 msgstr "Les jours d'affectation sont obligatoires"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/components/Layouts/AppSidebar.vue:612
 #: frontend/src/components/Settings/AssignmentRules/AssignmentRulesList.vue:16
@@ -1177,7 +1177,7 @@ msgstr "Notification CRM"
 msgid "CRM Organization"
 msgstr "Organisation CRM"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "CRM Portal Page"
 msgstr "Page du portail CRM"
@@ -1616,7 +1616,7 @@ msgstr "Raisons courantes de perte d'opportunités"
 msgid "Communication Status"
 msgstr "Statut de communication"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Communication Statuses"
 msgstr "Statuts de communication"
@@ -1733,8 +1733,8 @@ msgid "Confirm {0}"
 msgstr "Confirmer {0}"
 
 #: frontend/src/components/Settings/ERPNextSettings.vue:274
-msgid "Connect ERPNext to Frappe CRM"
-msgstr "Connecter ERPNext à Frappe CRM"
+msgid "Connect ERPNext to Gabriel Consultant CRM"
+msgstr "Connecter ERPNext à Gabriel Consultant CRM"
 
 #: frontend/src/pages/Welcome.vue:35
 msgid "Connect your Email"
@@ -1796,7 +1796,7 @@ msgstr "Image du contact mise à jour"
 
 #. Label of the contacts_tab (Tab Break) field in DocType 'CRM Deal'
 #. Label of the contacts (Table) field in DocType 'CRM Deal'
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/doctype/crm_deal/crm_deal.json
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/Contact.vue:244 frontend/src/pages/MobileContact.vue:226
@@ -1862,7 +1862,7 @@ msgid "Copied to Clipboard"
 msgstr "Copié dans le presse-papiers"
 
 #: crm/fcrm/doctype/erpnext_crm_settings/erpnext_crm_settings.py:156
-msgid "Could not create the Frappe CRM custom fields on {0} automatically. If it is running the latest ERPNext, enable <b>Frappe CRM Data Synchronization</b> in its CRM Settings, Otherwise check the Error Log."
+msgid "Could not create the Gabriel Consultant CRM custom fields on {0} automatically. If it is running the latest ERPNext, enable <b>Gabriel Consultant CRM Data Synchronization</b> in its CRM Settings, Otherwise check the Error Log."
 msgstr ""
 
 #: frontend/src/components/Settings/Hierarchy/useRemoveNode.js:16
@@ -2131,7 +2131,7 @@ msgstr "Responsable de l'opportunité"
 msgid "Deal Status"
 msgstr "Statut de l'opportunité"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Deal Statuses"
 msgstr "Statuts des opportunités"
@@ -2153,7 +2153,7 @@ msgstr "Le statut de l'opportunité est obligatoire"
 msgid "Deal value"
 msgstr "Valeur de l'opportunité"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/Deal.vue:514 frontend/src/pages/MobileContact.vue:302
 #: frontend/src/pages/MobileDeal.vue:391
@@ -3584,12 +3584,12 @@ msgstr "Script de formulaire mis à jour avec succès"
 
 #. Name of a Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
-msgid "Frappe CRM"
-msgstr "Frappe CRM"
+msgid "Gabriel Consultant CRM"
+msgstr "Gabriel Consultant CRM"
 
 #: frontend/src/components/Layouts/AppSidebar.vue:638
-msgid "Frappe CRM mobile"
-msgstr "Frappe CRM mobile"
+msgid "Gabriel Consultant CRM mobile"
+msgstr "Gabriel Consultant CRM mobile"
 
 #: frontend/src/components/Settings/emailConfig.js:81
 msgid "Frappe Mail Site"
@@ -3826,7 +3826,7 @@ msgid "How do new leads usually come to you?"
 msgstr ""
 
 #: frontend/src/pages/PersonaForm.vue:108
-msgid "How many people will use Frappe CRM?"
+msgid "How many people will use Gabriel Consultant CRM?"
 msgstr ""
 
 #. Description of the 'Timeline Timestamp Format' (Select) field in DocType
@@ -3939,7 +3939,7 @@ msgstr "Appel entrant..."
 msgid "Incorrect current password. Please try again."
 msgstr "Mot de passe actuel incorrect. Veuillez réessayer."
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Industries"
 msgstr "Secteurs d'activité"
@@ -4424,13 +4424,13 @@ msgstr "Responsable du Lead"
 msgid "Lead Owner cannot be same as the Lead Email Address"
 msgstr "Le responsable du Lead ne peut pas être identique à l'adresse e-mail du Lead."
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/components/Settings/LeadSyncing/LeadSyncSources.vue:7
 msgid "Lead Sources"
 msgstr "Sources des Leads"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Lead Statuses"
 msgstr "Statuts des Leads"
@@ -4472,7 +4472,7 @@ msgstr "Source de synchronisation des Leads supprimée avec succès"
 msgid "Lead to deal conversion pipeline"
 msgstr "Pipeline de conversion Lead en opportunité"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/InvalidPage.vue:9 frontend/src/pages/Lead.vue:369
 #: frontend/src/pages/MobileLead.vue:239
@@ -5613,7 +5613,7 @@ msgstr "Nom de l’organisation"
 msgid "Organization or a primary Contact is required to create a customer"
 msgstr ""
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/MobileOrganization.vue:219
 #: frontend/src/pages/Organization.vue:257
@@ -6466,7 +6466,7 @@ msgstr "Lignes"
 #. Label of the sla (Link) field in DocType 'CRM Deal'
 #. Label of the sla_tab (Tab Break) field in DocType 'CRM Lead'
 #. Label of the sla (Link) field in DocType 'CRM Lead'
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/doctype/crm_deal/crm_deal.json
 #: crm/fcrm/doctype/crm_lead/crm_lead.json
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
@@ -7456,7 +7456,7 @@ msgstr "Modèle mis à jour avec succès"
 msgid "Templates"
 msgstr "Modèles"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Territories"
 msgstr "Territoires"
@@ -8108,7 +8108,7 @@ msgid "Walk-ins"
 msgstr ""
 
 #: frontend/src/components/SalesHierarchyBanner.vue:20
-msgid "We are changing how permissions work in Frappe CRM"
+msgid "We are changing how permissions work in Gabriel Consultant CRM"
 msgstr ""
 
 #: frontend/src/components/Layouts/AppSidebar.vue:593
@@ -8166,7 +8166,7 @@ msgid "Welcome Message"
 msgstr "Message de bienvenue"
 
 #: frontend/src/pages/PersonaForm.vue:132
-msgid "Welcome to Frappe CRM"
+msgid "Welcome to Gabriel Consultant CRM"
 msgstr ""
 
 #: frontend/src/pages/Welcome.vue:4
@@ -8310,16 +8310,16 @@ msgid "You do not have Exotel Number set in your Telephony Agent"
 msgstr "Vous n'avez pas de numéro Exotel défini dans votre agent de téléphonie"
 
 #: frontend/src/pages/NotPermitted.vue:12
-msgid "You do not have enough permissions to access Frappe CRM. Please contact your administrator if you believe this is an error."
-msgstr "Vous ne disposez pas des autorisations suffisantes pour accéder à Frappe CRM. Veuillez contacter votre administrateur si vous pensez qu'il s'agit d'une erreur."
+msgid "You do not have enough permissions to access Gabriel Consultant CRM. Please contact your administrator if you believe this is an error."
+msgstr "Vous ne disposez pas des autorisations suffisantes pour accéder à Gabriel Consultant CRM. Veuillez contacter votre administrateur si vous pensez qu'il s'agit d'une erreur."
 
 #: crm/integrations/exotel/handler.py:92
 msgid "You do not have mobile number set in your Telephony Agent"
 msgstr "Vous n'avez pas de numéro de mobile défini dans votre agent de téléphonie"
 
 #: crm/www/crm.py:18
-msgid "You do not have permission to access Frappe CRM"
-msgstr "Vous n'avez pas la permission d'accéder à Frappe CRM"
+msgid "You do not have permission to access Gabriel Consultant CRM"
+msgstr "Vous n'avez pas la permission d'accéder à Gabriel Consultant CRM"
 
 #: frontend/src/data/document.js:45
 msgid "You do not have permission to access this document"

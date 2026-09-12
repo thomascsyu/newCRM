@@ -130,12 +130,12 @@ msgstr "501-1000"
 msgid "51-200"
 msgstr "51-200"
 
-#. Paragraph text in the Frappe CRM Workspace
+#. Paragraph text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<b>META</b>"
 msgstr "<b>META</b>"
 
-#. Paragraph text in the Frappe CRM Workspace
+#. Paragraph text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<b>SHORTCUTS</b>"
 msgstr "<b>GENVÄGAR</b>"
@@ -145,7 +145,7 @@ msgstr "<b>GENVÄGAR</b>"
 msgid "<p>Dear {{ lead_name }},</p>\\n\\n<p>This is a reminder for the payment of {{ grand_total }}.</p>\\n\\n<p>Thanks,</p>\\n<p>Frappé</p>"
 msgstr "<p>Bästa {{ lead_name }},</p>\\n\\n<p>Detta är en påminnelse om betalningen av {{ grand_total }}.</p>\\n\\n<p>Tack,</p>\\n<p>.</p>"
 
-#. Header text in the Frappe CRM Workspace
+#. Header text in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "<span class=\"h5\"><b>PORTAL</b></span>"
 msgstr "<span class=\"h5\"><b>PORTAL</b></span>"
@@ -782,7 +782,7 @@ msgstr "Tilldelning Dagar"
 msgid "Assignment Days are required"
 msgstr "Tilldelning Dagar erfordras"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/components/Layouts/AppSidebar.vue:612
 #: frontend/src/components/Settings/AssignmentRules/AssignmentRulesList.vue:16
@@ -1177,7 +1177,7 @@ msgstr "Aviseringar"
 msgid "CRM Organization"
 msgstr "Organisation"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "CRM Portal Page"
 msgstr "Portal"
@@ -1616,7 +1616,7 @@ msgstr "Vanliga anledningar till att affärer går förlorade"
 msgid "Communication Status"
 msgstr "Konversation Status"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Communication Statuses"
 msgstr "Konversation Status"
@@ -1733,7 +1733,7 @@ msgid "Confirm {0}"
 msgstr "Bekräfta {0}"
 
 #: frontend/src/components/Settings/ERPNextSettings.vue:274
-msgid "Connect ERPNext to Frappe CRM"
+msgid "Connect ERPNext to Gabriel Consultant CRM"
 msgstr "Koppla Affärssystem till Säljstöd"
 
 #: frontend/src/pages/Welcome.vue:35
@@ -1796,7 +1796,7 @@ msgstr "Kontakt bild uppdaterad"
 
 #. Label of the contacts_tab (Tab Break) field in DocType 'CRM Deal'
 #. Label of the contacts (Table) field in DocType 'CRM Deal'
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/doctype/crm_deal/crm_deal.json
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/Contact.vue:244 frontend/src/pages/MobileContact.vue:226
@@ -1862,7 +1862,7 @@ msgid "Copied to Clipboard"
 msgstr "Kopierad till Urklipp"
 
 #: crm/fcrm/doctype/erpnext_crm_settings/erpnext_crm_settings.py:156
-msgid "Could not create the Frappe CRM custom fields on {0} automatically. If it is running the latest ERPNext, enable <b>Frappe CRM Data Synchronization</b> in its CRM Settings, Otherwise check the Error Log."
+msgid "Could not create the Gabriel Consultant CRM custom fields on {0} automatically. If it is running the latest ERPNext, enable <b>Gabriel Consultant CRM Data Synchronization</b> in its CRM Settings, Otherwise check the Error Log."
 msgstr "Kunde inte skapa Säljstöd anpassade fält {0} automatiskt. Om det körs på senaste Affärssystem, aktivera <b>Säljstöd Data Synkronisering</b> i Säljstöd Inställningar, eller kontrollera fellogg."
 
 #: frontend/src/components/Settings/Hierarchy/useRemoveNode.js:16
@@ -2131,7 +2131,7 @@ msgstr "Ansvarig"
 msgid "Deal Status"
 msgstr "Affär Status"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Deal Statuses"
 msgstr "Affär Status"
@@ -2153,7 +2153,7 @@ msgstr "Affärsstatus erfordras"
 msgid "Deal value"
 msgstr "Affärsvärde"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/Deal.vue:514 frontend/src/pages/MobileContact.vue:302
 #: frontend/src/pages/MobileDeal.vue:391
@@ -3584,11 +3584,11 @@ msgstr "Formulär Skript uppdaterad"
 
 #. Name of a Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
-msgid "Frappe CRM"
+msgid "Gabriel Consultant CRM"
 msgstr "Säljstöd"
 
 #: frontend/src/components/Layouts/AppSidebar.vue:638
-msgid "Frappe CRM mobile"
+msgid "Gabriel Consultant CRM mobile"
 msgstr "Mobil App"
 
 #: frontend/src/components/Settings/emailConfig.js:81
@@ -3826,7 +3826,7 @@ msgid "How do new leads usually come to you?"
 msgstr "Hur brukar nya potentiella kunder komma till er?"
 
 #: frontend/src/pages/PersonaForm.vue:108
-msgid "How many people will use Frappe CRM?"
+msgid "How many people will use Gabriel Consultant CRM?"
 msgstr "Hur många kommer att använda Säljstöd?"
 
 #. Description of the 'Timeline Timestamp Format' (Select) field in DocType
@@ -3939,7 +3939,7 @@ msgstr "Inkommande samtal..."
 msgid "Incorrect current password. Please try again."
 msgstr "Felaktigt lösenord. Försök igen."
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Industries"
 msgstr "Branscher"
@@ -4424,13 +4424,13 @@ msgstr "Potentiell Kund Ansvarig"
 msgid "Lead Owner cannot be same as the Lead Email Address"
 msgstr "Potentiell Kund Ansvarig kan inte vara samma som Potentiell Kund E-post Adress"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/components/Settings/LeadSyncing/LeadSyncSources.vue:7
 msgid "Lead Sources"
 msgstr "Potentiell Kund Källor"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Lead Statuses"
 msgstr "Potentiell Kund Status"
@@ -4472,7 +4472,7 @@ msgstr "Potentiell Kund synkronisering källa togs bort"
 msgid "Lead to deal conversion pipeline"
 msgstr "Konvertering Process Potentiell Kund till Affär"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/InvalidPage.vue:9 frontend/src/pages/Lead.vue:369
 #: frontend/src/pages/MobileLead.vue:239
@@ -5613,7 +5613,7 @@ msgstr "Bolag Namn"
 msgid "Organization or a primary Contact is required to create a customer"
 msgstr "Organisation eller primär kontakt erfordras för att skapa kund"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 #: frontend/src/pages/MobileOrganization.vue:219
 #: frontend/src/pages/Organization.vue:257
@@ -6466,7 +6466,7 @@ msgstr "Rader"
 #. Label of the sla (Link) field in DocType 'CRM Deal'
 #. Label of the sla_tab (Tab Break) field in DocType 'CRM Lead'
 #. Label of the sla (Link) field in DocType 'CRM Lead'
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/doctype/crm_deal/crm_deal.json
 #: crm/fcrm/doctype/crm_lead/crm_lead.json
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
@@ -7456,7 +7456,7 @@ msgstr "Mall uppdaterad"
 msgid "Templates"
 msgstr "Mallar"
 
-#. Label of a shortcut in the Frappe CRM Workspace
+#. Label of a shortcut in the Gabriel Consultant CRM Workspace
 #: crm/fcrm/workspace/frappe_crm/frappe_crm.json
 msgid "Territories"
 msgstr "Distrikt"
@@ -8108,7 +8108,7 @@ msgid "Walk-ins"
 msgstr "Drop-in"
 
 #: frontend/src/components/SalesHierarchyBanner.vue:20
-msgid "We are changing how permissions work in Frappe CRM"
+msgid "We are changing how permissions work in Gabriel Consultant CRM"
 msgstr "Vi ändrar hur behörigheter fungerar i Säljstöd"
 
 #: frontend/src/components/Layouts/AppSidebar.vue:593
@@ -8166,7 +8166,7 @@ msgid "Welcome Message"
 msgstr "Välkomstmeddelande"
 
 #: frontend/src/pages/PersonaForm.vue:132
-msgid "Welcome to Frappe CRM"
+msgid "Welcome to Gabriel Consultant CRM"
 msgstr "Välkommen till Säljstöd"
 
 #: frontend/src/pages/Welcome.vue:4
@@ -8310,7 +8310,7 @@ msgid "You do not have Exotel Number set in your Telephony Agent"
 msgstr "Du har inget Exotel Nummer angiven i din Telefoni Agent"
 
 #: frontend/src/pages/NotPermitted.vue:12
-msgid "You do not have enough permissions to access Frappe CRM. Please contact your administrator if you believe this is an error."
+msgid "You do not have enough permissions to access Gabriel Consultant CRM. Please contact your administrator if you believe this is an error."
 msgstr "Du har inte tillräcklig behörighet för att komma åt Säljstöd. Kontakta administratör om du tror att detta är felaktigt."
 
 #: crm/integrations/exotel/handler.py:92
@@ -8318,7 +8318,7 @@ msgid "You do not have mobile number set in your Telephony Agent"
 msgstr "Du har inget Mobil Nummer angiven i din Telefoni Agent"
 
 #: crm/www/crm.py:18
-msgid "You do not have permission to access Frappe CRM"
+msgid "You do not have permission to access Gabriel Consultant CRM"
 msgstr "Du har inte åtkomstbehörighet till Säljstöd"
 
 #: frontend/src/data/document.js:45
