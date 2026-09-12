@@ -3,9 +3,9 @@ FROM node:24-bookworm-slim AS node
 FROM python:3.14-slim-trixie
 ARG FRAPPE_REF=988e54f3c4c291e2077a83809663f123731abe76
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 \
-    PATH=/home/frappe/frappe-bench/env/bin:/usr/local/bin:/usr/bin:/bin
+    PATH=/home/frappe/frappe-bench/env/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl ca-certificates build-essential pkg-config libmariadb-dev mariadb-client \
+    git curl ca-certificates passwd util-linux build-essential pkg-config libmariadb-dev mariadb-client \
     nginx supervisor gettext libffi-dev libssl-dev libjpeg-dev zlib1g-dev \
     libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 libgdk-pixbuf-2.0-0 \
     fonts-dejavu-core && rm -rf /var/lib/apt/lists/*

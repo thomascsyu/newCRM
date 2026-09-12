@@ -9,7 +9,7 @@ spec:
     - CRM
   variables:
     - key: CRM_DOMAIN
-      type: DOMAIN
+      type: STRING
       name: CRM hostname
       description: Enter crm.gabrielconsultant.one without https or a path.
   readme: |-
@@ -104,7 +104,6 @@ spec:
       dependencies:
         - mariadb
         - redis
-      domainKey: CRM_DOMAIN
       spec:
         source:
           source: GITHUB

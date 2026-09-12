@@ -57,7 +57,7 @@ From your clone of this repository, run:
 npx zeabur@latest template deploy -f zeabur.yaml --var CRM_DOMAIN=crm.gabrielconsultant.one
 ```
 
-Sign in when prompted and select the intended project/server. The command supplies `crm.gabrielconsultant.one` as `CRM_DOMAIN`. Grant the Zeabur GitHub app access to `thomascsyu/newCRM` if prompted. The template uses verified GitHub repository ID `1367346335`, branch `main`, and the repository root Dockerfile.
+Sign in when prompted and select the intended project/server. The command supplies `crm.gabrielconsultant.one` as `CRM_DOMAIN`. This is a string setting; bind the custom hostname separately under Networking after import. Grant the Zeabur GitHub app access to `thomascsyu/newCRM` if prompted. The template uses verified GitHub repository ID `1367346335`, branch `main`, and the repository root Dockerfile.
 
 After import, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` under **crm → Variables**, then restart CRM. They are intentionally empty in the template and are not exposed to other services. A first-start message asking for these variables is expected until they are set. Generated database and Redis passwords are wired automatically; do not replace them with literal `${PASSWORD}` strings in the dashboard.
 
