@@ -38,6 +38,6 @@ COPY deployment/supervisord.conf /etc/supervisor/crm.conf
 RUN chmod +x apps/crm/deployment/entrypoint.sh \
     && mkdir -p /var/log/supervisor /var/lib/nginx /run/nginx
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=300s \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=600s \
   CMD curl --fail --silent http://127.0.0.1:8080/api/method/crm.company_auth.health || exit 1
 ENTRYPOINT ["/home/frappe/frappe-bench/apps/crm/deployment/entrypoint.sh"]

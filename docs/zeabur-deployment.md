@@ -47,17 +47,135 @@ On MariaDB set `MARIADB_ROOT_PASSWORD` to the same bootstrap password, and confi
 
 No ERPNext, Twilio or Exotel variables are used. Remove any such variables from existing Zeabur services and revoke the retired credentials at their providers after migration.
 
-## Deploy
+## Deploy the complete stack from the template
 
-1. Add the private MariaDB and Redis services and their volumes.
-2. Add this repository as a Zeabur Git service. Use the repository root as the build root; Zeabur detects the root Dockerfile. Do not override the image entrypoint with `yarn start` or `bench start`.
-3. Mount the CRM sites volume **before its first start**. Do not mount over the `apps` directory.
-4. Add the environment variables and bind the canonical public HTTPS hostname to port 8080.
-5. Set a startup allowance long enough for first database installation (at least 10 minutes). The readiness endpoint is `/api/method/crm.company_auth.health`; it returns 200 only after startup and checks database and Redis connectivity.
-6. Deploy and review logs. Bootstrap creates `crm.internal` if absent, installs CRM, migrates it, provisions the initial admin if missing, and enables the scheduler. Any failure stops startup.
-7. Visit `/company-login` and sign in with the configured initial administrator. Passwords and `Administrator` web login are intentionally unavailable.
+The root [`zeabur.yaml`](../zeabur.yaml) creates `mariadb`, `redis` and `crm` in one project, with storage, connection references, startup dependencies and health checks. Database TCP forwarding is explicitly disabled. This template is for a **new deployment**; do not import it over an existing production installation or it may create duplicate services.
 
-Verify `/company-login` displays only Google sign-in, an unrelated Google account is denied, a provisioned employee can create a lead and task, and the data survives a restart. Verify `/socket.io` connects through the public hostname. Google OAuth needs real client credentials and a real Workspace account for this final live check.
+From your clone of this repository, run:
+
+```sh
+npx zeabur@latest template deploy -f zeabur.yaml --var CRM_DOMAIN=crm.gabrielconsultant.one
+```
+
+Sign in when prompted and select the intended project/server. The command supplies `crm.gabrielconsultant.one` as `CRM_DOMAIN`. Grant the Zeabur GitHub app access to `thomascsyu/newCRM` if prompted. The template uses verified GitHub repository ID `1367346335`, branch `main`, and the repository root Dockerfile.
+
+After import, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` under **crm → Variables**, then restart CRM. They are intentionally empty in the template and are not exposed to other services. A first-start message asking for these variables is expected until they are set. Generated database and Redis passwords are wired automatically; do not replace them with literal `${PASSWORD}` strings in the dashboard.
+
+The template can create configuration, but it cannot supply the company's Google credentials, change external DNS, choose a paid server for you, or verify a real Workspace login. The following settings complete that setup.
+
+## Service settings
+
+Use one project named `gabriel-crm` (suggested) and keep all three services on the same server/project network. Use an existing company server with sufficient spare capacity. For planning, start with 2 CPU cores and 4 GB RAM available to CRM, 1 GB to MariaDB and 512 MB to Redis, plus headroom for the operating system. These are initial estimates, not measured minimums; monitor actual use. Image builds run separately from service runtime and need enough build memory as well.
+
+Set **one replica per service**. The schema does not specify CPU/RAM limits, volume capacities, replica counts or startup-probe timing; configure supported limits in the dashboard. Volume mounts are defined by the template. Allow enough space for uploads and local backups: a starting plan is 10 GB for CRM sites, 10 GB for MariaDB and 1 GB for Redis, expanded as usage grows.
+
+### MariaDB service
+
+| Setting | Value |
+|---|---|
+| Service name | `mariadb` |
+| Image | `mariadb:11.8` |
+| Command | `docker-entrypoint.sh` |
+| Arguments | `mariadbd --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --max-connections=100 --innodb-buffer-pool-size=512M` |
+| Port | `3306`, TCP, private only |
+| TCP forwarding | Disabled |
+| Volume ID → mount | `database` → `/var/lib/mysql` |
+| Health check | TCP, port ID `database` |
+| `MARIADB_ROOT_PASSWORD` | Generated once by the template; store securely |
+| `MARIADB_ROOT_HOST` | `%` for bootstrap from the CRM service over the private network |
+| Exported `CRM_DB_HOST` | `${CONTAINER_HOSTNAME}` |
+| Exported `CRM_DB_ROOT_PASSWORD` | Reference to `MARIADB_ROOT_PASSWORD` |
+
+Keep the database initialization entrypoint. Do not set `MARIADB_DATABASE`, `MARIADB_USER` or `MARIADB_PASSWORD`: Bench creates its own site database and restricted database user. MariaDB initialization variables only initialize an empty volume; changing a password environment variable later does not rotate an existing database user's password.
+
+### Redis service
+
+| Setting | Value |
+|---|---|
+| Service name | `redis` |
+| Image | `redis:7.4-alpine` |
+| Command | `docker-entrypoint.sh` |
+| Arguments | `redis-server /usr/local/etc/redis/company.conf` |
+| Port | `6379`, TCP, private only |
+| TCP forwarding | Disabled |
+| Volume ID → mount | `data` → `/data` |
+| Health check | TCP, port ID `database` |
+| `CRM_REDIS_PASSWORD` | Generated once by the template |
+| Exported `CRM_REDIS_URL` | `redis://:${CRM_REDIS_PASSWORD}@${CONTAINER_HOSTNAME}:6379/0` |
+
+The template mounts `/usr/local/etc/redis/company.conf` with environment substitution enabled. It sets password authentication, AOF persistence (`appendonly yes`, `appendfsync everysec`), a 256 MB Redis data limit and `maxmemory-policy noeviction`. This Redis instance holds queues as well as cache: do not configure an eviction policy that discards queued jobs. Increase the data limit and service memory together if usage approaches the limit. The service requires memory above the data limit for overhead and persistence.
+
+### CRM service
+
+| Setting | Value |
+|---|---|
+| Service name | `crm` |
+| Source | `thomascsyu/newCRM`, branch `main` |
+| Root/build context | Repository root |
+| Dockerfile | Root `Dockerfile`; automatic detection |
+| Install/build/start overrides | Leave empty; preserve the Dockerfile entrypoint |
+| Public HTTP port | `8080` (`PORT=8080`) |
+| Public hostname | `crm.gabrielconsultant.one` |
+| Volume ID → mount | `sites` → `/home/frappe/frappe-bench/sites` |
+| Health check | HTTP on `web`, path `/api/method/crm.company_auth.health` |
+| Dependencies | `mariadb`, `redis` |
+| Replicas | Exactly `1` |
+
+CRM variables are listed above. In the template, `DB_HOST=${CRM_DB_HOST}`, `DB_ROOT_PASSWORD=${CRM_DB_ROOT_PASSWORD}` and `REDIS_URL=${CRM_REDIS_URL}` reference the dependency services. `${CONTAINER_HOSTNAME}` is service-specific: **do not use it directly as CRM's DB_HOST** or CRM will connect to itself. The site identifier `crm.internal` is unrelated to database DNS.
+
+After a successful initial installation, the CRM service uses the database credentials stored in its sites volume. To reduce bootstrap-credential exposure, remove `DB_ROOT_PASSWORD` from CRM and disable project exposure of `CRM_DB_ROOT_PASSWORD` on MariaDB. Keep the original password in your company secret store for recovery. Do not re-import the template to perform this change.
+
+## Manual dashboard setup
+
+If you prefer not to import YAML, create the services above in this order: MariaDB, Redis, CRM. Copy the Redis config from `zeabur.yaml` into its Config Files panel and enable environment substitution. Generate separate strong passwords for MariaDB and Redis, and configure them before starting each service. A command such as `openssl rand -hex 32` generates a URL-safe password.
+
+Get each dependency's actual private hostname from **Networking → Private**; renaming a service does not necessarily rename that hostname. Enter the concrete hostname/password values into CRM's `DB_HOST`, `DB_ROOT_PASSWORD` and `REDIS_URL`, or configure the same project variable references as the template. If using a password with special URL characters, percent-encode it in `REDIS_URL`. Do not use localhost or a public forwarded database address.
+
+## DNS, HTTPS and Google callback
+
+1. Open **crm → Networking**, bind `crm.gabrielconsultant.one` to the HTTP `web` port, and copy the DNS instructions Zeabur displays.
+2. In the DNS zone for `gabrielconsultant.one`, add the record for host `crm` with the exact type and target shown by Zeabur. For a CNAME instruction, use that CNAME target; if your server requires an A record, use its displayed address. No project-specific target/IP can be filled in before the service exists.
+3. Resolve any conflicting record for `crm` and wait for Zeabur to verify the hostname and issue its HTTPS certificate. Leave other company DNS records unchanged.
+4. Keep `CRM_PUBLIC_URL=https://crm.gabrielconsultant.one` and verify the Google authorized redirect URI is exactly `https://crm.gabrielconsultant.one/api/method/crm.company_auth.callback`.
+5. Open `https://crm.gabrielconsultant.one/company-login`. Use `thomas@gabriel.hk`. The hostname's domain and the email domain intentionally differ.
+
+Zeabur terminates TLS; Nginx listens on port 8080 inside the service. Do not expose Gunicorn port 8000 or realtime port 9000 separately. Nginx forwards `/socket.io` on the same public HTTPS hostname.
+
+## Startup and acceptance checks
+
+Bootstrap validates configuration, waits for dependency connectivity, creates `crm.internal` if absent, installs/migrates CRM, provisions the initial administrator if missing and enables the scheduler. An existing installation is backed up locally before migration. Application processes start only after bootstrap succeeds. The Docker health check allows 600 seconds for startup; that setting does not automatically control Zeabur's platform probe timing. Review platform deployment events if first installation exceeds its startup window.
+
+Check from your workstation:
+
+```sh
+curl --fail --silent --show-error https://crm.gabrielconsultant.one/api/method/crm.company_auth.health
+```
+
+Expect a JSON response containing `"status":"ok"`. In the CRM service terminal, inspect all five supervised processes:
+
+```sh
+supervisorctl -c /etc/supervisor/crm.conf status
+```
+
+Then verify Google login with the administrator, rejection of an unrelated Google account, lead/task creation, realtime connectivity, logout, and retained data after one controlled restart. A TCP probe on MariaDB/Redis only checks their listeners; the CRM HTTP health check checks actual database/Redis connectivity. It does not prove that workers or outbound email work.
+
+Use the application Email settings to configure an outgoing email account before inviting staff. Google login alone does not configure Gmail sending. Send an invitation to a company employee and verify delivery and Google access.
+
+## Troubleshooting
+
+| Symptom | Check/action |
+|---|---|
+| Missing Google environment variable at startup | Set both OAuth variables on CRM, then restart it. |
+| MariaDB access denied | Match the stored bootstrap password on first creation; check private host/port and root host access. Changing an environment variable does not rotate an existing MariaDB password. |
+| Redis NOAUTH, invalid password or connection refused | Match config-file password and CRM URL, enable env substitution, and use the private hostname. |
+| Redis OOM/noeviction errors | Inspect queued jobs and memory, then increase Redis data and service memory limits. Do not discard the queue. |
+| OAuth redirect_uri_mismatch | Match public HTTPS origin and the exact callback URI in the Google client. |
+| Company user denied | Check provisioned/enabled User, System User type, CRM role, verified email and Workspace domain. |
+| Healthy page but no background work | Check worker/scheduler process status and `bench --site crm.internal doctor` in the service. |
+| Git build cannot find the repository | Give the Zeabur GitHub app access to newCRM and confirm branch main. |
+| Build killed for memory | Increase build capacity separately from runtime memory. |
+| Deployment waits for health | Read bootstrap/migration logs and platform events. Do not remove the health check to hide an install error. |
+| Data missing after restart | Confirm the three volume mounts and original site credentials; stop before creating replacement data. |
 
 ## Employee access
 
@@ -117,6 +235,11 @@ For authenticated workflow tests, run Playwright codegen against staging with `-
 
 ## References
 
+- [Zeabur template format](https://zeabur.com/docs/en-US/template/template-format)
+- [Zeabur template schema](https://schema.zeabur.app/template.json)
+- [Zeabur service schema](https://schema.zeabur.app/prebuilt.json)
+- [Zeabur private networking](https://zeabur.com/docs/en-US/deploy/networking/private-networking)
+- [Zeabur health checks](https://zeabur.com/docs/en-US/operations/monitoring/health-checks)
 - [Zeabur Dockerfile deployments](https://zeabur.com/docs/en-US/deploy/methods/dockerfile)
 - [Zeabur persistent volumes](https://zeabur.com/docs/en-US/data-management/volumes)
 - [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect)

@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=https://schema.zeabur.app/template.json
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: Gabriel Consultant CRM
+spec:
+  description: Single-company CRM with Google Workspace sign-in, MariaDB and Redis.
+  tags:
+    - CRM
+  variables:
+    - key: CRM_DOMAIN
+      type: DOMAIN
+      name: CRM hostname
+      description: Enter crm.gabrielconsultant.one without https or a path.
+  readme: |-
+    # Gabriel Consultant CRM
+    Deploy once into a new project. Enter crm.gabrielconsultant.one for CRM_DOMAIN.
+    After import, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the crm service
+    only, then restart it. CRM cannot start until both are configured.
+    Bind the custom hostname and complete the DNS records shown by Zeabur.
+    Keep one replica of each service and preserve all three volumes.
+    Full instructions: https://github.com/thomascsyu/newCRM/blob/main/docs/zeabur-deployment.md
+  services:
+    - name: mariadb
+      template: PREBUILT
+      spec:
+        source:
+          image: mariadb:11.8
+          command:
+            - docker-entrypoint.sh
+          args:
+            - mariadbd
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+            - --max-connections=100
+            - --innodb-buffer-pool-size=512M
+        ports:
+          - id: database
+            port: 3306
+            type: TCP
+        portForwarding:
+          enabled: false
+        volumes:
+          - id: database
+            dir: /var/lib/mysql
+        healthCheck:
+          type: TCP
+          port: database
+        env:
+          MARIADB_ROOT_PASSWORD:
+            default: ${PASSWORD}
+          MARIADB_ROOT_HOST:
+            default: '%'
+          CRM_DB_HOST:
+            default: ${CONTAINER_HOSTNAME}
+            expose: true
+          CRM_DB_ROOT_PASSWORD:
+            default: ${MARIADB_ROOT_PASSWORD}
+            expose: true
+    - name: redis
+      template: PREBUILT
+      spec:
+        source:
+          image: redis:7.4-alpine
+          command:
+            - docker-entrypoint.sh
+          args:
+            - redis-server
+            - /usr/local/etc/redis/company.conf
+        ports:
+          - id: database
+            port: 6379
+            type: TCP
+        portForwarding:
+          enabled: false
+        volumes:
+          - id: data
+            dir: /data
+        healthCheck:
+          type: TCP
+          port: database
+        configs:
+          - path: /usr/local/etc/redis/company.conf
+            permission: 420
+            envsubst: true
+            template: |-
+              bind 0.0.0.0
+              port 6379
+              protected-mode yes
+              requirepass ${CRM_REDIS_PASSWORD}
+              dir /data
+              appendonly yes
+              appendfsync everysec
+              maxmemory 256mb
+              maxmemory-policy noeviction
+        env:
+          CRM_REDIS_PASSWORD:
+            default: ${PASSWORD}
+          CRM_REDIS_URL:
+            default: redis://:${CRM_REDIS_PASSWORD}@${CONTAINER_HOSTNAME}:6379/0
+            expose: true
+    - name: crm
+      template: GIT
+      dependencies:
+        - mariadb
+        - redis
+      domainKey: CRM_DOMAIN
+      spec:
+        source:
+          source: GITHUB
+          repo: 1367346335
+          branch: main
+          rootDirectory: /
+        ports:
+          - id: web
+            port: 8080
+            type: HTTP
+        portForwarding:
+          enabled: false
+        volumes:
+          - id: sites
+            dir: /home/frappe/frappe-bench/sites
+        healthCheck:
+          type: HTTP
+          port: web
+          http:
+            path: /api/method/crm.company_auth.health
+        env:
+          COMPANY_EMAIL_DOMAIN:
+            default: gabriel.hk
+          COMPANY_ADMIN_EMAIL:
+            default: thomas@gabriel.hk
+          CRM_PUBLIC_URL:
+            default: https://${CRM_DOMAIN}
+          GOOGLE_CLIENT_ID:
+            default: ''
+          GOOGLE_CLIENT_SECRET:
+            default: ''
+          DB_HOST:
+            default: ${CRM_DB_HOST}
+          DB_PORT:
+            default: '3306'
+          DB_ROOT_USER:
+            default: root
+          DB_ROOT_PASSWORD:
+            default: ${CRM_DB_ROOT_PASSWORD}
+          REDIS_URL:
+            default: ${CRM_REDIS_URL}
+          PORT:
+            default: '8080'
