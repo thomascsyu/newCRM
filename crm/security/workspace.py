@@ -26,16 +26,19 @@ def company_email(email: str, domain: str) -> str:
     return email
 
 
-def validate_claims(claims: dict, domain: str, nonce: str) -> str:
-    """Called only AFTER signature, audience, issuer and expiry verification."""
+def validate_claims(claims: dict, domain: str, nonce: str, *, require_nonce: bool = True) -> str:
+    """Called only AFTER Google identity verification (ID token or userinfo)."""
     email = company_email(claims.get("email"), domain)
-    if claims.get("email_verified") is not True:
+    verified = claims.get("email_verified")
+    if verified is not True and verified != "true":
         raise WorkspaceIdentityError("Google has not verified this email address.")
     # Email suffix alone does not prove membership of a managed Workspace.
     hosted_domain = (claims.get("hd") or "").strip().lower()
     if hosted_domain != normalize_domain(domain):
         raise WorkspaceIdentityError("A managed company Google Workspace account is required.")
-    if not nonce or claims.get("nonce") != nonce or not claims.get("sub"):
+    if not claims.get("sub"):
+        raise WorkspaceIdentityError("Invalid Google identity response.")
+    if require_nonce and (not nonce or claims.get("nonce") != nonce):
         raise WorkspaceIdentityError("Invalid Google identity response.")
     return email
 

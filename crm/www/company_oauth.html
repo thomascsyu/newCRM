@@ -30,6 +30,9 @@
   <main>
     <p>Continuing to sign in&hellip;</p>
     <p><a id="continue" href="{{ google_url }}">Continue</a></p>
+    <noscript>
+      <meta http-equiv="refresh" content="0;url={{ google_url }}">
+    </noscript>
   </main>
   <script>
     location.replace(document.getElementById("continue").href);
