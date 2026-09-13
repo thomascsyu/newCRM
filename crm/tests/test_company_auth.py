@@ -6,6 +6,7 @@ import unittest
 from contextlib import nullcontext
 from types import SimpleNamespace as NS
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlparse
 from werkzeug.exceptions import HTTPException
 
 from crm import company_auth as auth
@@ -55,6 +56,7 @@ class GoogleAuthTests(unittest.TestCase):
         with patch.object(auth.requests, "post", return_value=response) as post, patch.object(auth.id_token, "verify_oauth2_token", return_value=claims or self.claims, side_effect=verify_error) as verify:
             inspect.unwrap(auth.callback)(code="code", state="state")
             self.assertEqual(post.call_args.kwargs['data']['code_verifier'], 'verifier')
+            self.assertEqual(post.call_args.kwargs['data']['redirect_uri'], auth.oauth_redirect_uri("https://crm.company.test"))
             self.assertEqual(verify.call_args.kwargs['audience'], 'client')
 
     def test_valid_login_uses_verified_email(self):
@@ -72,41 +74,97 @@ class GoogleAuthTests(unittest.TestCase):
     def test_logout_may_create_anonymous_session(self):
         auth.on_login(NS(user="Guest"))
 
-    def test_state_cannot_be_replayed(self):
+    def test_replayed_callback_returns_to_crm(self):
         self.callback()
-        with self.assertRaises(PermissionError):
-            self.callback()
+        inspect.unwrap(auth.callback)(code="code", state="state")
         self.assertEqual(self.f.local.login_manager.login_as.call_count, 1)
+        self.assertEqual(self.f.local.response.location, "/crm")
+
+    def test_unknown_callback_returns_to_sign_in(self):
+        inspect.unwrap(auth.callback)(code="code", state="unknown")
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=expired")
 
     def test_wrong_browser_cookie_is_rejected(self):
-        self.f.request.cookies[auth.COOKIE] = "wrong-browser"
-        with self.assertRaises(PermissionError):
-            self.callback()
+        self.f.request.cookies = {auth.COOKIE: "wrong-browser"}
+        inspect.unwrap(auth.callback)(code="code", state="state")
         self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=expired")
+
+    def test_sid_cookie_is_accepted_as_browser_binding(self):
+        self.f.request.cookies = {"sid": "browser-binding"}
+        self.callback()
+        self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
 
     def test_signature_or_audience_verification_failure(self):
-        with self.assertRaises(PermissionError):
-            self.callback(verify_error=ValueError("bad signature"))
+        self.callback(verify_error=ValueError("bad signature"))
         self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=unverified")
 
     def test_foreign_workspace_rejected(self):
-        with self.assertRaises(PermissionError):
-            self.callback({**self.claims, "email": "rep@other.test", "hd": "other.test"})
+        self.callback({**self.claims, "email": "rep@other.test", "hd": "other.test"})
         self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=unverified")
 
     def test_disabled_user_rejected(self):
         self.user.enabled = 0
-        with self.assertRaises(PermissionError):
-            self.callback()
+        self.callback()
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=disabled")
 
     def test_unprovisioned_user_rejected(self):
         self.f.db.exists.return_value = False
-        with self.assertRaises(PermissionError):
-            self.callback()
+        self.callback()
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=disabled")
 
     def test_changed_google_subject_rejected(self):
-        with self.assertRaises(PermissionError):
-            self.callback({**self.claims, "sub": "replacement-mailbox"})
+        self.callback({**self.claims, "sub": "replacement-mailbox"})
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=identity")
+
+    def test_cancelled_google_prompt_returns_to_sign_in(self):
+        inspect.unwrap(auth.callback)(code=None, state="state", error="access_denied")
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=cancelled")
+
+    def test_missing_crm_role_returns_to_sign_in(self):
+        self.f.get_roles.return_value = ["All", "Guest"]
+        self.callback()
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=role")
+
+    def test_start_sends_browser_to_html_interstitial(self):
+        inspect.unwrap(auth.start)()
+        self.assertEqual(self.f.local.response.location, auth.START_PAGE + "?redirect-to=%2Fcrm")
+        self.f.local.cookie_manager.set_cookie.assert_not_called()
+
+    def test_begin_sign_in_stores_redirect_target(self):
+        self.f.cache.data.clear()
+        inspect.unwrap(auth.begin_google_sign_in)(redirect_to="/crm/deals/DEAL-001")
+        stored = next(value for key, value in self.f.cache.data.items() if key.startswith("company_oauth:"))
+        self.assertEqual(stored["redirect_to"], "/crm/deals/DEAL-001")
+
+    def test_authorization_and_token_use_the_same_callback_uri(self):
+        expected = "https://crm.company.test/api/method/crm.company_auth.callback"
+        self.assertEqual(auth.CALLBACK, "/api/method/crm.company_auth.callback")
+        self.assertEqual(auth.oauth_redirect_uri("https://crm.company.test"), expected)
+        self.f.cache.data.clear()
+        url = inspect.unwrap(auth.begin_google_sign_in)()
+        self.assertEqual(parse_qs(urlparse(url).query)["redirect_uri"], [expected])
+
+    def test_begin_sign_in_reuses_existing_session_cookie(self):
+        self.f.cache.data.clear()
+        self.f.request.cookies = {"sid": "already-established"}
+        url = inspect.unwrap(auth.begin_google_sign_in)()
+        self.assertTrue(url.startswith("https://accounts.google.com/o/oauth2/v2/auth?"))
+        stored = next(value for key, value in self.f.cache.data.items() if key.startswith("company_oauth:"))
+        self.assertEqual(stored["binding"], hashlib.sha256(b"already-established").hexdigest())
+        self.f.local.cookie_manager.set_cookie.assert_called()
+
+    def test_unknown_oauth_error_code_is_ignored(self):
+        self.assertEqual(auth.oauth_login_path("not-a-code"), "/company-login")
+        self.assertEqual(auth.oauth_login_path("expired"), "/company-login?error=expired")
 
     def test_password_login_always_rejected(self):
         with self.assertRaises(PermissionError):
@@ -190,6 +248,12 @@ class GoogleAuthTests(unittest.TestCase):
     def test_health_path_is_public(self):
         self.f.request.path = auth.HEALTH
         auth.before_request()
+
+    def test_oauth_start_page_is_public(self):
+        for path in (auth.START_PAGE, "/company_oauth"):
+            with self.subTest(path=path):
+                self.f.request.path = path
+                auth.before_request()
 
 
 if __name__ == '__main__':

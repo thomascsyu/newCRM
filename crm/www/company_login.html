@@ -129,6 +129,15 @@
     .open:hover { background: #2660d6; }
     .open:focus-visible { outline: 3px solid #16202b; outline-offset: 3px; }
 
+    .error {
+      margin: 0 0 16px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fde8e8;
+      color: #8a1f1f;
+      font-size: 14px;
+      text-align: left;
+    }
     .fine {
       margin-top: 22px;
       color: var(--muted);
@@ -185,6 +194,9 @@
       {% else %}
         <h2>Sign in to continue</h2>
         <p class="sub">Use your work account to access the workspace.</p>
+        {% if error %}
+        <p class="error" role="alert">{{ error }}</p>
+        {% endif %}
         <a class="signin" href="{{ login_url }}">Sign in</a>
         <p class="fine">Restricted to authorized team members. Contact your administrator if you need access.</p>
       {% endif %}

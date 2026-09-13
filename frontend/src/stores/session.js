@@ -18,8 +18,8 @@ export const sessionStore = defineStore('crm-session', () => {
   const isLoggedIn = computed(() => !!user.value)
 
   function login(redirectTo = currentRedirectPath()) {
-    const params = new URLSearchParams({ redirect_to: redirectTo })
-    window.location.href = `/api/method/crm.company_auth.start?${params}`
+    const params = new URLSearchParams({ 'redirect-to': redirectTo })
+    window.location.href = `/company-oauth?${params}`
   }
 
   const logout = createResource({
