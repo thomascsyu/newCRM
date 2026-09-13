@@ -45,6 +45,8 @@ OAUTH_ERRORS = {
     "config": "Google sign-in is not configured. Contact your administrator.",
 }
 OAUTH_CLOCK_SKEW_SECONDS = 10
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 # Frappe's own Web Form submission handler -- see crm.api.form / crm.www.crm_form,
 # which build published, login_required=0 Web Forms specifically for anonymous
 # prospect capture (marketing site embeds, webinar sign-ups).
@@ -86,9 +88,50 @@ def oauth_login_path(code=None, redirect_to=None):
 def _oauth_error_from_token_response(error_code):
     if error_code == "invalid_grant":
         return "expired"
-    if error_code in ("invalid_client", "unauthorized_client"):
+    if error_code in ("invalid_client", "unauthorized_client", "redirect_uri_mismatch"):
         return "config"
     return "unverified"
+
+
+def _log_oauth_failure(stage, detail=""):
+    # Never log authorization codes, tokens, secrets or profile payloads.
+    frappe.log_error(title=f"Google OAuth {stage}", message=detail or stage)
+
+
+def _verify_id_token(token, client_id):
+    return id_token.verify_oauth2_token(
+        token, Request(), audience=client_id, clock_skew_in_seconds=OAUTH_CLOCK_SKEW_SECONDS,
+    )
+
+
+def _claims_from_userinfo(access_token):
+    response = requests.get(
+        GOOGLE_USERINFO_URL,
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _resolve_google_claims(body, client_id):
+    """Prefer a verified ID token; fall back to Google's userinfo endpoint."""
+    token = body.get("id_token")
+    if token:
+        try:
+            return _verify_id_token(token, client_id), True
+        except (GoogleAuthError, ValueError) as exc:
+            _log_oauth_failure("id_token", type(exc).__name__)
+
+    access_token = body.get("access_token")
+    if not access_token:
+        return None, True
+
+    try:
+        return _claims_from_userinfo(access_token), False
+    except requests.RequestException as exc:
+        _log_oauth_failure("userinfo", type(exc).__name__)
+        return None, True
 
 
 def _fail_oauth(code, pending=None):
@@ -201,7 +244,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
             _fail_oauth("cancelled", pending)
             return
         try:
-            response = requests.post("https://oauth2.googleapis.com/token", data={
+            response = requests.post(GOOGLE_TOKEN_URL, data={
                 "code": code, "client_id": client_id, "client_secret": secret,
                 "redirect_uri": oauth_redirect_uri(origin), "grant_type": "authorization_code",
                 "code_verifier": pending["verifier"],
@@ -212,21 +255,23 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
                 body = {}
             if not response.ok:
                 frappe.cache.delete_value("company_oauth:" + state)
+                error_code = body.get("error") or "token_http_" + str(response.status_code)
+                _log_oauth_failure("token", error_code)
                 _fail_oauth(_oauth_error_from_token_response(body.get("error")), pending)
                 return
-            token = body["id_token"]
-            # google-auth verifies Google's signature, issuer, expiry and our audience.
-            claims = id_token.verify_oauth2_token(
-                token, Request(), audience=client_id, clock_skew_in_seconds=OAUTH_CLOCK_SKEW_SECONDS,
-            )
-            email = validate_claims(claims, domain, pending["nonce"])
+            claims, require_nonce = _resolve_google_claims(body, client_id)
+            if not claims:
+                frappe.cache.delete_value("company_oauth:" + state)
+                _fail_oauth("unverified", pending)
+                return
+            email = validate_claims(claims, domain, pending["nonce"], require_nonce=require_nonce)
         except WorkspaceIdentityError:
             frappe.cache.delete_value("company_oauth:" + state)
             _fail_oauth("workspace", pending)
             return
-        except (requests.RequestException, GoogleAuthError, ValueError, KeyError):
+        except (requests.RequestException, KeyError) as exc:
             frappe.cache.delete_value("company_oauth:" + state)
-            # Do not expose authorization codes, tokens or secrets in errors/logs.
+            _log_oauth_failure("callback", type(exc).__name__)
             _fail_oauth("unverified", pending)
             return
         user = frappe.get_doc("User", email) if frappe.db.exists("User", email) else None

@@ -29,6 +29,14 @@ class WorkspaceIdentityTests(unittest.TestCase):
     def test_valid_claims(self):
         self.assertEqual(validate_claims(self.claims(), "company.test", "nonce"), "employee@company.test")
 
+    def test_userinfo_claims_do_not_require_nonce(self):
+        claims = self.claims()
+        claims.pop("nonce")
+        self.assertEqual(
+            validate_claims(claims, "company.test", "nonce", require_nonce=False),
+            "employee@company.test",
+        )
+
     def test_https_canonical_origin(self):
         self.assertEqual(public_origin("https://crm.company.test/"), "https://crm.company.test")
         for origin in ("http://crm.company.test", "//crm.company.test", "https://user:pass@crm.company.test", "https://crm.company.test/path", "https://crm.company.test?redirect=evil"):

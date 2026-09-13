@@ -50,13 +50,29 @@ class GoogleAuthTests(unittest.TestCase):
         self.f.cache.set_value("company_oauth:state", {"binding": hashlib.sha256(b"browser-binding").hexdigest(), "nonce": "nonce", "verifier": "verifier", "redirect_to": "/crm/leads"})
         self.claims = {"email": "rep@company.test", "email_verified": True, "hd": "company.test", "nonce": "nonce", "sub": "subject"}
 
-    def callback(self, claims=None, verify_error=None, token_response=None, token_ok=True):
-        response = Mock()
-        response.ok = token_ok
-        response.json.return_value = token_response or {"id_token": "signed-token"}
-        with patch.object(auth.requests, "post", return_value=response) as post, patch.object(auth.id_token, "verify_oauth2_token", return_value=claims or self.claims, side_effect=verify_error) as verify:
+    def callback(self, claims=None, verify_error=None, token_response=None, token_ok=True, userinfo_response=None, userinfo_error=None):
+        token_response = token_response or {"id_token": "signed-token", "access_token": "access-token"}
+        token_http = Mock()
+        token_http.ok = token_ok
+        token_http.status_code = 200 if token_ok else 400
+        token_http.json.return_value = token_response
+        userinfo_http = Mock()
+        userinfo_http.ok = True
+        userinfo_http.json.return_value = userinfo_response or (claims or self.claims)
+        userinfo_http.raise_for_status = Mock()
+
+        def request_side_effect(method, url, **kwargs):
+            if url == auth.GOOGLE_USERINFO_URL:
+                if userinfo_error:
+                    raise userinfo_error
+                return userinfo_http
+            raise AssertionError(f"unexpected request: {method} {url}")
+
+        with patch.object(auth.requests, "post", return_value=token_http) as post, patch.object(
+            auth.requests, "get", side_effect=request_side_effect,
+        ), patch.object(auth.id_token, "verify_oauth2_token", return_value=claims or self.claims, side_effect=verify_error) as verify:
             inspect.unwrap(auth.callback)(code="code", state="state")
-            if token_ok:
+            if token_ok and not verify_error:
                 self.assertEqual(post.call_args.kwargs['data']['code_verifier'], 'verifier')
                 self.assertEqual(post.call_args.kwargs['data']['redirect_uri'], auth.oauth_redirect_uri("https://crm.company.test"))
                 self.assertEqual(verify.call_args.kwargs['audience'], 'client')
@@ -100,9 +116,21 @@ class GoogleAuthTests(unittest.TestCase):
         self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
 
     def test_signature_or_audience_verification_failure(self):
-        self.callback(verify_error=ValueError("bad signature"))
+        self.callback(
+            verify_error=ValueError("bad signature"),
+            userinfo_error=auth.requests.RequestException("network"),
+        )
         self.f.local.login_manager.login_as.assert_not_called()
         self.assertEqual(self.f.local.response.location, "/company-login?error=unverified")
+
+    def test_userinfo_fallback_when_id_token_verification_fails(self):
+        self.callback(verify_error=ValueError("bad signature"))
+        self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
+        self.assertEqual(self.f.local.response.location, "/crm/leads")
+
+    def test_missing_id_token_can_still_sign_in_with_userinfo(self):
+        self.callback(token_response={"access_token": "access-token"})
+        self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
 
     def test_foreign_workspace_rejected(self):
         self.callback({**self.claims, "email": "rep@other.test", "hd": "other.test"})
@@ -122,6 +150,14 @@ class GoogleAuthTests(unittest.TestCase):
 
     def test_invalid_client_surfaces_configuration_error(self):
         self.callback(token_ok=False, token_response={"error": "invalid_client"})
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(
+            self.f.local.response.location,
+            "/company-login?error=config&redirect-to=%2Fcrm%2Fleads",
+        )
+
+    def test_redirect_uri_mismatch_surfaces_configuration_error(self):
+        self.callback(token_ok=False, token_response={"error": "redirect_uri_mismatch"})
         self.f.local.login_manager.login_as.assert_not_called()
         self.assertEqual(
             self.f.local.response.location,
