@@ -14,6 +14,8 @@ from google.auth.exceptions import GoogleAuthError
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 from frappe.rate_limiter import rate_limit
+from werkzeug.exceptions import HTTPException
+from werkzeug.utils import redirect
 
 from crm.security.workspace import company_email, normalize_domain, public_origin, validate_claims, WorkspaceIdentityError
 
@@ -46,6 +48,14 @@ def _deny(message="Sign in with your company Google Workspace account."):
 
 def _redirect(location):
     frappe.local.response.update(type="redirect", location=location)
+
+
+def _require_sign_in(message="Sign in with your company Google Workspace account."):
+    # before_request runs outside the website renderer, which is the part of
+    # Frappe that handles frappe.Redirect. Return a real HTTP redirect here.
+    if frappe.request.method == "GET" and not frappe.request.path.startswith("/api/"):
+        raise HTTPException(response=redirect("/company-login", code=302))
+    _deny(message)
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
@@ -192,19 +202,14 @@ def before_request():
     if _is_public_form_request(path, request.method):
         return
     if frappe.session.user == "Guest":
-        if not path.startswith("/api/") and request.method == "GET":
-            frappe.local.flags.redirect_location = "/company-login"
-            redirect = frappe.Redirect()
-            redirect.http_status_code = 302
-            raise redirect
-        _deny()
+        _require_sign_in()
     domain, *_ = configuration()
     try:
         email = company_email(frappe.session.user, domain)
     except WorkspaceIdentityError:
-        _deny()
+        _require_sign_in()
     if frappe.session.data.get("company_google_login") != email:
-        _deny("Your session predates company Google sign-in. Sign out and sign in again.")
+        _require_sign_in("Your session predates company Google sign-in. Sign out and sign in again.")
     if not frappe.db.get_value("User", email, "enabled"):
         _deny("Your CRM account is disabled.")
 
