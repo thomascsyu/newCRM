@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="refresh" content="0;url={{ google_url }}">
+  <title>Sign in</title>
+  <style>
+    :root { color-scheme: light; --ink: #16202b; --muted: #5b6b7c; --accent: #2f6fed; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background: #fbfcfe;
+      padding: 24px;
+    }
+    main { max-width: 28rem; text-align: center; }
+    p { color: var(--muted); margin: 0 0 16px; }
+    a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p>Continuing to sign in&hellip;</p>
+    <p><a id="continue" href="{{ google_url }}">Continue</a></p>
+  </main>
+  <script>
+    location.replace(document.getElementById("continue").href);
+  </script>
+</body>
+</html>

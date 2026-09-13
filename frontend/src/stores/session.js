@@ -16,7 +16,7 @@ export const sessionStore = defineStore('crm-session', () => {
   const isLoggedIn = computed(() => !!user.value)
 
   function login() {
-    window.location.href = '/api/method/crm.company_auth.start'
+    window.location.href = '/company-oauth'
   }
 
   const logout = createResource({

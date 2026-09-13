@@ -19,5 +19,9 @@ test('rejects password and API-token authentication', async ({ request }) => {
 
 test('rejects anonymous CRM data requests and forged callbacks', async ({ request }) => {
   expect((await request.get('/api/resource/CRM Lead')).ok()).toBeFalsy()
-  expect((await request.get('/api/method/crm.company_auth.callback?state=forged&code=forged')).ok()).toBeFalsy()
+  const callback = await request.get('/api/method/crm.company_auth.callback?state=forged&code=forged', {
+    maxRedirects: 0,
+  })
+  expect([301, 302, 303, 307, 308]).toContain(callback.status())
+  expect(callback.headers()['location'] || '').toContain('/company-login')
 })
