@@ -303,5 +303,6 @@ home_page = "company-login"
 website_route_rules.extend([
     {"from_route": "/login", "to_route": "company_login"},
     {"from_route": "/company-login", "to_route": "company_login"},
+    {"from_route": "/company-oauth", "to_route": "company_oauth"},
 ])
 after_migrate.append("crm.company_setup.configure")
