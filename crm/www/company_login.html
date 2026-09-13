@@ -4,22 +4,193 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>Gabriel Consultant CRM — Sign in</title>
+  <title>Gabriel Consultant CRM</title>
   <style>
-    body { margin:0; min-height:100vh; display:grid; place-items:center; background:#f5f7fa; color:#17202a; font:16px/1.6 system-ui,sans-serif; }
-    main { background:white; padding:48px; border:1px solid #e2e7ee; border-radius:16px; max-width:380px; margin:24px; box-shadow:0 12px 40px #17202a08; }
-    h1 { font-size:28px; letter-spacing:-.03em; margin:0 0 12px; }
-    p { color:#526171; margin:0 0 28px; }
-    a { display:block; text-align:center; border-radius:8px; padding:12px 20px; background:#17202a; color:white; text-decoration:none; font-weight:600; }
-    a:focus-visible { outline:3px solid #4285f4; outline-offset:4px; }
-    small { display:block; margin-top:24px; color:#526171; }
+    :root {
+      color-scheme: light;
+      --ink: #16202b;
+      --muted: #5b6b7c;
+      --line: #e5e9ef;
+      --accent: #2f6fed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1100px 600px at 85% -10%, #eaf1ff 0%, transparent 60%),
+        radial-gradient(900px 500px at -10% 110%, #f3f6fb 0%, transparent 55%),
+        #fbfcfe;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 28px 40px;
+    }
+    .mark {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), #1c3fa8);
+      flex-shrink: 0;
+    }
+    .brand { font-weight: 700; letter-spacing: -0.01em; font-size: 15px; }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      align-items: center;
+      gap: 48px;
+      max-width: 1080px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 40px 60px;
+    }
+    .pitch h1 {
+      font-size: 42px;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin: 0 0 18px;
+    }
+    .pitch p {
+      color: var(--muted);
+      font-size: 17px;
+      max-width: 40ch;
+      margin: 0 0 28px;
+    }
+    .points {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 14px;
+      color: var(--ink);
+      font-size: 14.5px;
+    }
+    .points li { display: flex; align-items: flex-start; gap: 10px; }
+    .points svg { flex-shrink: 0; margin-top: 2px; color: var(--accent); }
+
+    .panel {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 40px 36px;
+      box-shadow: 0 20px 50px -20px #16202b1a;
+    }
+    .panel h2 {
+      font-size: 20px;
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .panel .sub {
+      color: var(--muted);
+      font-size: 14px;
+      margin: 0 0 26px;
+    }
+    .signin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      border: none;
+      border-radius: 10px;
+      padding: 13px 20px;
+      background: var(--ink);
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s ease, transform 0.05s ease;
+    }
+    .signin:hover { background: #24313f; }
+    .signin:active { transform: translateY(1px); }
+    .signin:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+    .open {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      border: none;
+      border-radius: 10px;
+      padding: 13px 20px;
+      background: var(--accent);
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .open:hover { background: #2660d6; }
+    .open:focus-visible { outline: 3px solid #16202b; outline-offset: 3px; }
+
+    .fine {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 12.5px;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12.5px;
+      padding: 0 20px 28px;
+    }
+
+    @media (max-width: 860px) {
+      main { grid-template-columns: 1fr; padding: 8px 24px 48px; gap: 32px; }
+      .pitch h1 { font-size: 32px; }
+      header { padding: 24px; }
+    }
   </style>
 </head>
-<body><main>
-  <h1>Gabriel Consultant CRM</h1>
-  <p>Manage your client relationships, opportunities and follow-ups.</p>
-  {% if logged_in %}<a href="/crm">Open CRM</a>
-  {% else %}<a href="{{ login_url }}">Sign in with Google</a>{% endif %}
-  <small>For authorized employees only. Use your company Google Workspace account. Contact your administrator if you need access.</small>
-</main></body>
+<body>
+  <header>
+    <div class="mark"></div>
+    <div class="brand">Gabriel Consultant CRM</div>
+  </header>
+
+  <main>
+    <div class="pitch">
+      <h1>Every client relationship, organized in one place.</h1>
+      <p>Track leads, deals and follow-ups without the spreadsheet sprawl.</p>
+      <ul class="points">
+        <li>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Pipeline and activity in a single workspace
+        </li>
+        <li>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Nothing falls through on follow-ups
+        </li>
+        <li>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Access restricted to your organization
+        </li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      {% if logged_in %}
+        <h2>Welcome back</h2>
+        <p class="sub">Your session is active.</p>
+        <a class="open" href="/crm">Open CRM</a>
+      {% else %}
+        <h2>Sign in to continue</h2>
+        <p class="sub">Use your work account to access the workspace.</p>
+        <a class="signin" href="{{ login_url }}">Sign in</a>
+        <p class="fine">Restricted to authorized team members. Contact your administrator if you need access.</p>
+      {% endif %}
+    </div>
+  </main>
+
+  <footer>&copy; Gabriel Consultant</footer>
+</body>
 </html>
