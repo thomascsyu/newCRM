@@ -47,6 +47,14 @@ class GoogleAuthTests(unittest.TestCase):
         self.addCleanup(self.patch.stop)
         self.f.db.exists.return_value = True
         self.f.db.get_value.return_value = 1
+        self.oauth_cookie = auth._pack_oauth_state({
+            "raw": "browser-binding",
+            "state": "state",
+            "nonce": "nonce",
+            "verifier": "verifier",
+            "redirect_to": "/crm/leads",
+        }, "secret")
+        self.f.request.cookies = {auth.COOKIE: self.oauth_cookie}
         self.f.cache.set_value("company_oauth:state", {"binding": hashlib.sha256(b"browser-binding").hexdigest(), "nonce": "nonce", "verifier": "verifier", "redirect_to": "/crm/leads"})
         self.claims = {"email": "rep@company.test", "email_verified": True, "hd": "company.test", "nonce": "nonce", "sub": "subject"}
 
@@ -106,12 +114,21 @@ class GoogleAuthTests(unittest.TestCase):
 
     def test_wrong_browser_cookie_is_rejected(self):
         self.f.request.cookies = {auth.COOKIE: "wrong-browser"}
+        self.f.cache.data.clear()
         inspect.unwrap(auth.callback)(code="code", state="state")
         self.f.local.login_manager.login_as.assert_not_called()
         self.assertEqual(self.f.local.response.location, "/company-login?error=expired")
 
+    def test_signed_cookie_can_complete_login_without_redis_pending(self):
+        self.f.cache.data.clear()
+        self.callback()
+        self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
+
     def test_sid_cookie_is_accepted_as_browser_binding(self):
-        self.f.request.cookies = {"sid": "browser-binding"}
+        self.f.request.cookies = {
+            auth.COOKIE: self.oauth_cookie,
+            "sid": "browser-binding",
+        }
         self.callback()
         self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
 
@@ -225,7 +242,10 @@ class GoogleAuthTests(unittest.TestCase):
         self.assertTrue(url.startswith("https://accounts.google.com/o/oauth2/v2/auth?"))
         stored = next(value for key, value in self.f.cache.data.items() if key.startswith("company_oauth:"))
         self.assertEqual(stored["binding"], hashlib.sha256(b"already-established").hexdigest())
-        self.f.local.cookie_manager.set_cookie.assert_called()
+        cookie_args = self.f.local.cookie_manager.set_cookie.call_args
+        self.assertEqual(cookie_args.args[0], auth.COOKIE)
+        packed = auth._unpack_oauth_state(cookie_args.args[1], "secret")
+        self.assertEqual(packed["raw"], "already-established")
 
     def test_unknown_oauth_error_code_is_ignored(self):
         self.assertEqual(auth.oauth_login_path("not-a-code"), "/company-login")

@@ -4,6 +4,8 @@ One deployment, one site, one allowed domain. There is no tenant discovery.
 """
 import base64
 import hashlib
+import hmac
+import json
 import os
 import secrets
 from urllib.parse import urlencode
@@ -98,6 +100,53 @@ def _log_oauth_failure(stage, detail=""):
     frappe.log_error(title=f"Google OAuth {stage}", message=detail or stage)
 
 
+def _oauth_signing_key(secret):
+    return hmac.new(b"crm-company-oauth", secret.encode(), hashlib.sha256).digest()
+
+
+def _pack_oauth_state(payload, secret):
+    body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    signature = hmac.new(_oauth_signing_key(secret), body, hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(body + b"." + signature).decode().rstrip("=")
+
+
+def _unpack_oauth_state(value, secret):
+    padded = value + "=" * (-len(value) % 4)
+    raw = base64.urlsafe_b64decode(padded.encode())
+    body, signature = raw.rsplit(b".", 1)
+    expected = hmac.new(_oauth_signing_key(secret), body, hashlib.sha256).digest()
+    if not hmac.compare_digest(signature, expected):
+        raise ValueError("invalid oauth cookie")
+    return json.loads(body.decode())
+
+
+def _pending_from_cookie(state, secret):
+    packed = _cookie_secret(COOKIE)
+    if not packed:
+        return None
+    try:
+        payload = _unpack_oauth_state(packed, secret)
+    except (ValueError, json.JSONDecodeError, KeyError):
+        return None
+    if payload.get("state") != state or not payload.get("raw") or not payload.get("verifier"):
+        return None
+    raw = payload["raw"]
+    return {
+        "binding": hashlib.sha256(raw.encode()).hexdigest(),
+        "nonce": payload.get("nonce") or "",
+        "verifier": payload["verifier"],
+        "redirect_to": payload.get("redirect_to") or "/crm",
+    }
+
+
+def _load_oauth_pending(state, secret):
+    pending = _pending_from_cookie(state, secret)
+    if pending:
+        return pending
+    cached = frappe.cache.get_value("company_oauth:" + state)
+    return cached if isinstance(cached, dict) else None
+
+
 def _verify_id_token(token, client_id):
     return id_token.verify_oauth2_token(
         token, Request(), audience=client_id, clock_skew_in_seconds=OAUTH_CLOCK_SKEW_SECONDS,
@@ -187,15 +236,18 @@ def begin_google_sign_in(redirect_to: str | None = None):
     Called from the /company-oauth HTML page so Set-Cookie happens on a 200
     document response, not on a bounce redirect to Google.
     """
-    domain, origin, client_id, _ = configuration()
+    domain, origin, client_id, secret = configuration()
     redirect_path = safe_redirect_path(redirect_to or frappe.form_dict.get("redirect-to"))
     state, nonce, verifier = [secrets.token_urlsafe(32) for _ in range(3)]
     raw = _binding_raw()
-    frappe.cache.set_value("company_oauth:" + state, {
+    pending = {
         "binding": hashlib.sha256(raw.encode()).hexdigest(),
         "nonce": nonce, "verifier": verifier, "redirect_to": redirect_path,
-    }, expires_in_sec=600)
-    _set_oauth_cookie(raw)
+    }
+    frappe.cache.set_value("company_oauth:" + state, pending, expires_in_sec=600)
+    _set_oauth_cookie(_pack_oauth_state({
+        "raw": raw, "state": state, "nonce": nonce, "verifier": verifier, "redirect_to": redirect_path,
+    }, secret))
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
         "client_id": client_id, "redirect_uri": oauth_redirect_uri(origin),
@@ -229,7 +281,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
     # Hold the lock through login so a second mobile callback waits, then
     # sees the completion marker instead of Frappe's 401 Session Expired page.
     with frappe.cache.lock("company_oauth_lock:" + state, timeout=10):
-        pending = frappe.cache.get_value("company_oauth:" + state)
+        pending = _load_oauth_pending(state, secret)
         if not pending:
             if frappe.cache.get_value(OAUTH_DONE + state) or _signed_in():
                 _redirect("/crm")
@@ -253,7 +305,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
                 body = response.json()
             except ValueError:
                 body = {}
-            if not response.ok:
+            if body.get("error") or not response.ok:
                 frappe.cache.delete_value("company_oauth:" + state)
                 error_code = body.get("error") or "token_http_" + str(response.status_code)
                 _log_oauth_failure("token", error_code)

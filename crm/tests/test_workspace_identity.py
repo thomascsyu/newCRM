@@ -22,7 +22,7 @@ class WorkspaceIdentityTests(unittest.TestCase):
                 normalize_domain(domain)
 
     def test_requires_verified_managed_google_identity(self):
-        for update in ({"email_verified": False}, {"email_verified": "true"}, {"hd": ""}, {"hd": None}, {"hd": "other.test"}, {"nonce": "wrong"}, {"sub": ""}):
+        for update in ({"email_verified": False}, {"email_verified": "false"}, {"hd": ""}, {"hd": None}, {"hd": "other.test"}, {"nonce": "wrong"}, {"sub": ""}):
             with self.subTest(update=update), self.assertRaises(WorkspaceIdentityError):
                 validate_claims(self.claims(**update), "company.test", "nonce")
 
@@ -34,6 +34,12 @@ class WorkspaceIdentityTests(unittest.TestCase):
         claims.pop("nonce")
         self.assertEqual(
             validate_claims(claims, "company.test", "nonce", require_nonce=False),
+            "employee@company.test",
+        )
+
+    def test_accepts_string_email_verified_from_userinfo(self):
+        self.assertEqual(
+            validate_claims(self.claims(email_verified="true"), "company.test", "nonce", require_nonce=False),
             "employee@company.test",
         )
 
