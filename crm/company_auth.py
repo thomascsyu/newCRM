@@ -21,6 +21,10 @@ CALLBACK = "/api/method/crm.company_auth.callback"
 START = "/api/method/crm.company_auth.start"
 HEALTH = "/api/method/crm.company_auth.health"
 COOKIE = "__Host-crm_oauth"
+# Frappe's own Web Form submission handler -- see crm.api.form / crm.www.crm_form,
+# which build published, login_required=0 Web Forms specifically for anonymous
+# prospect capture (marketing site embeds, webinar sign-ups).
+PUBLIC_FORM_ACCEPT_METHOD = "/api/method/frappe.website.doctype.web_form.web_form.accept"
 
 
 def configuration():
@@ -139,6 +143,38 @@ def on_session_creation(login_manager):
     frappe.local.session_obj.update(force=True)
 
 
+def _is_published_crm_form(web_form_name):
+    if not web_form_name:
+        return False
+    from crm.api.form import ALLOWED_DOCTYPES
+
+    return bool(
+        frappe.db.exists(
+            "Web Form",
+            {
+                "name": web_form_name,
+                "published": 1,
+                "login_required": 0,
+                "doc_type": ["in", ALLOWED_DOCTYPES],
+            },
+        )
+    )
+
+
+def _is_public_form_request(path, method):
+    """Published CRM web forms are meant to be reachable by anonymous
+    prospects. Their own page controller (crm.www.crm_form) and Frappe's Web
+    Form `accept()` handler already scope themselves to published,
+    login_required=0 forms -- this only opens the gate far enough for those
+    two guest-safe surfaces to be reached at all; everything else stays
+    behind company sign-in."""
+    if method == "GET" and (path == "/crm-form" or path.startswith("/crm-form/")):
+        return True
+    if method == "POST" and path == PUBLIC_FORM_ACCEPT_METHOD:
+        return _is_published_crm_form(frappe.form_dict.get("web_form"))
+    return False
+
+
 def before_request():
     request = frappe.request
     if request.method == "OPTIONS":
@@ -152,6 +188,8 @@ def before_request():
     if frappe.form_dict.get("cmd") and path in public and frappe.form_dict.cmd != "logout":
         _deny()
     if path in public:
+        return
+    if _is_public_form_request(path, request.method):
         return
     if frappe.session.user == "Guest":
         if not path.startswith("/api/") and request.method == "GET":

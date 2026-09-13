@@ -337,8 +337,11 @@ def get_data(
 			rows = frappe.parse_json(list_view_settings.rows)
 			is_default = False
 		elif not custom_view or (is_default and hasattr(_list, "default_list_data")):
-			rows = default_rows
-			columns = _list.default_list_data().get("columns")
+			if hasattr(_list, "default_list_data"):
+				rows = default_rows
+				columns = _list.default_list_data().get("columns")
+			# else: a controller with no default_list_data (and no saved view)
+			# keeps the generic Name/Last Modified columns set above.
 
 		visible_columns = []
 		for column in columns:
@@ -768,25 +771,40 @@ def remove_doc_link(doctype, docname):
 		pass
 
 
-def remove_contact_link(doctype, docname):
+def remove_contact_link(doctype, docname, contact_name=None):
+	"""Unlink a contact from `doctype`/`docname`. When `contact_name` is given,
+	only that contact's row/reference is removed; other linked contacts are
+	preserved. Without it (legacy callers), every contact link is cleared."""
 	if not doctype or not docname:
 		return
 
 	try:
 		linked_doc_data = frappe.get_doc(doctype, docname)
-		linked_doc_data.update(
-			{
-				"contact": None,
-				"contacts": [],
-			}
-		)
+
+		if contact_name:
+			if linked_doc_data.get("contact") == contact_name:
+				linked_doc_data.contact = None
+			if linked_doc_data.meta.has_field("contacts"):
+				linked_doc_data.set(
+					"contacts",
+					[row for row in linked_doc_data.get("contacts") or [] if row.contact != contact_name],
+				)
+		else:
+			linked_doc_data.update(
+				{
+					"contact": None,
+					"contacts": [],
+				}
+			)
 		linked_doc_data.save(ignore_permissions=True)
 	except (frappe.DoesNotExistError, frappe.ValidationError):
 		pass
 
 
 @frappe.whitelist()
-def remove_linked_doc_reference(items: str | list, remove_contact: bool = False, delete: bool = False):
+def remove_linked_doc_reference(
+	items: str | list, remove_contact: bool = False, delete: bool = False, contact_name: str | None = None
+):
 	if isinstance(items, str):
 		items = frappe.parse_json(items)
 
@@ -799,7 +817,7 @@ def remove_linked_doc_reference(items: str | list, remove_contact: bool = False,
 
 		try:
 			if remove_contact:
-				remove_contact_link(item["doctype"], item["docname"])
+				remove_contact_link(item["doctype"], item["docname"], contact_name)
 			else:
 				remove_doc_link(item["doctype"], item["docname"])
 
@@ -826,12 +844,17 @@ def delete_bulk_docs(doctype: str, items: str | list, delete_linked: bool = Fals
 	if not isinstance(items, list):
 		frappe.throw(_("Items must be a list"))
 
+	# Only items whose linked-doc cleanup actually succeeded are handed to
+	# delete_bulk -- unlinking must happen before deletion (or delete fails
+	# on link constraints), so an item whose cleanup raised is skipped
+	# entirely rather than deleted with unknown/partial link state.
+	deletable_items = []
 	for doc in items:
-		try:
-			if not frappe.db.exists(doctype, doc):
-				frappe.log_error(f"Document {doctype} {doc} does not exist", "Bulk Delete Error")
-				continue
+		if not frappe.db.exists(doctype, doc):
+			frappe.log_error(f"Document {doctype} {doc} does not exist", "Bulk Delete Error")
+			continue
 
+		try:
 			linked_docs = get_linked_docs_of_document(doctype, doc)
 			for linked_doc in linked_docs:
 				if not linked_doc.get("reference_doctype") or not linked_doc.get("reference_docname"):
@@ -846,12 +869,17 @@ def delete_bulk_docs(doctype: str, items: str | list, delete_linked: bool = Fals
 					],
 					remove_contact=doctype == "Contact",
 					delete=delete_linked,
+					contact_name=doc if doctype == "Contact" else None,
 				)
+			deletable_items.append(doc)
 		except Exception as e:
 			frappe.log_error(f"Error processing linked docs for {doctype} {doc}: {e!s}", "Bulk Delete Error")
 
-	if len(items) > 10:
-		frappe.enqueue("frappe.desk.reportview.delete_bulk", doctype=doctype, items=items)
+	if not deletable_items:
+		return "success"
+
+	if len(deletable_items) > 10:
+		frappe.enqueue("frappe.desk.reportview.delete_bulk", doctype=doctype, items=deletable_items)
 	else:
-		delete_bulk(doctype, items)
+		delete_bulk(doctype, deletable_items)
 	return "success"

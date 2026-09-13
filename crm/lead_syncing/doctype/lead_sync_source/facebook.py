@@ -18,6 +18,15 @@ def get_fb_graph_api_url(endpoint: str) -> str:
 
 
 class FacebookSyncSource:
+	# Overlap the next sync's filter window behind the checkpoint so a lead
+	# that lands right at the boundary (clock drift, Graph API replication
+	# lag) is refetched rather than skipped. Refetches are harmless: they are
+	# deduped by the unique facebook_lead_id (see validate_duplicate_lead).
+	SYNC_OVERLAP_SECONDS = 300
+	# Hard stop on `paging.next` loops so a malformed/looping cursor from the
+	# Graph API can't turn a scheduled sync into an unbounded job.
+	MAX_PAGES = 200
+
 	def __init__(
 		self,
 		access_token: str,
@@ -33,10 +42,15 @@ class FacebookSyncSource:
 		return get_fb_graph_api_url(endpoint)
 
 	def sync(self):
+		# Captured before fetching so the next checkpoint reflects when this
+		# sync *started* looking, not when it finished processing -- a lead
+		# created while this run was still paginating/processing must still
+		# be picked up by the next run.
+		sync_started_at = frappe.utils.now()
 		leads = self.fetch_leads()
 		for lead in leads:
 			self.sync_single_lead(lead)
-		self.update_last_synced_at()
+		self.update_last_synced_at(sync_started_at)
 
 	def sync_single_lead(self, lead, raise_exception=False):
 		question_to_field_map = self.get_form_questions_mapping()
@@ -70,19 +84,35 @@ class FacebookSyncSource:
 		params = {
 			"access_token": self.access_token,
 			"fields": "id,created_time,field_data",
-			"limit": 100000,  # TODO: pagination
+			"limit": 100,
 		}
 
-		filtering = []
 		if self.last_synced_at:
-			timestamp = frappe.utils.data.get_timestamp(self.last_synced_at)
-			filtering.append({"field": "time_created", "operator": "GREATER_THAN", "value": timestamp})
+			timestamp = frappe.utils.data.get_timestamp(self.last_synced_at) - self.SYNC_OVERLAP_SECONDS
+			filtering = [{"field": "time_created", "operator": "GREATER_THAN", "value": timestamp}]
 			params["filtering"] = frappe.as_json(filtering)
 
-		return make_get_request(
-			url,
-			params=params,
-		).get("data", [])
+		leads = []
+		next_url, next_params = url, params
+		for _page in range(self.MAX_PAGES):
+			if not next_url:
+				break
+
+			response = make_get_request(next_url, params=next_params)
+			leads.extend(response.get("data", []))
+
+			# The `next` link already carries every query param (including
+			# the cursor), so it must be requested as-is with no extra params.
+			next_url = response.get("paging", {}).get("next")
+			next_params = None
+		else:
+			frappe.log_error(
+				f"Facebook lead sync for form {self.form_id} hit the {self.MAX_PAGES}-page cap; "
+				"remaining pages were not fetched this run.",
+				"Facebook Lead Sync",
+			)
+
+		return leads
 
 	def get_form_questions_mapping(self):
 		if self.form_questions_mapping:
@@ -118,12 +148,12 @@ class FacebookSyncSource:
 			}
 		).insert(ignore_permissions=True)
 
-	def update_last_synced_at(self):
+	def update_last_synced_at(self, synced_at: str | None = None):
 		frappe.db.set_value(
 			"Lead Sync Source",
 			self.source_name or {"facebook_lead_form": self.form_id},
 			"last_synced_at",
-			frappe.utils.now(),
+			synced_at or frappe.utils.now(),
 		)
 
 	def get_source_name(self):

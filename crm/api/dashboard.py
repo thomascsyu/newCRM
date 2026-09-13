@@ -7,6 +7,7 @@ from frappe.query_builder.functions import Avg, Coalesce, Count, Date, DateForma
 from pypika.functions import Function
 
 from crm.fcrm.doctype.crm_dashboard.crm_dashboard import create_default_manager_dashboard
+from crm.permissions.org_hierarchy import get_visibility_scope
 from crm.utils import sales_user_only
 
 
@@ -14,6 +15,38 @@ from crm.utils import sales_user_only
 class TimestampDiff(Function):
 	def __init__(self, unit, start, end, **kwargs):
 		super().__init__("TIMESTAMPDIFF", unit, start, end, **kwargs)
+
+
+def _resolve_scoped_user(requested_user: str | None) -> str | list[str] | None:
+	"""Resolve the effective owner filter for dashboard queries: a Sales User
+	is always pinned to themselves, a Sales Manager (or higher) is pinned to
+	their own sales-hierarchy subtree, and the requested user is honoured
+	only when it falls inside that scope. This mirrors the CRM Lead/CRM Deal
+	list-view permission query conditions so dashboard totals never exceed
+	what the same user could see in the record lists."""
+	roles = frappe.get_roles(frappe.session.user)
+	is_sales_manager = "Sales Manager" in roles or "System Manager" in roles
+	is_sales_user = "Sales User" in roles and not is_sales_manager
+
+	if is_sales_user:
+		return frappe.session.user
+
+	scope = get_visibility_scope(frappe.session.user)
+	if scope is None:
+		return requested_user
+
+	if requested_user:
+		return requested_user if requested_user in scope else scope
+
+	return scope
+
+
+def _owner_condition(field, user: str | list[str] | None):
+	"""Build an equality/IN condition for a scoped owner filter. `user` may
+	be a single user email or a list of user emails (sales hierarchy scope)."""
+	if isinstance(user, (list, tuple, set)):
+		return field.isin(list(user))
+	return field == user
 
 
 @frappe.whitelist()
@@ -33,12 +66,7 @@ def get_dashboard(from_date: str | None = None, to_date: str | None = None, user
 		from_date = frappe.utils.get_first_day(from_date or frappe.utils.nowdate())
 		to_date = frappe.utils.get_last_day(to_date or frappe.utils.nowdate())
 
-	roles = frappe.get_roles(frappe.session.user)
-	is_sales_manager = "Sales Manager" in roles or "System Manager" in roles
-	is_sales_user = "Sales User" in roles and not is_sales_manager
-
-	if is_sales_user:
-		user = frappe.session.user
+	user = _resolve_scoped_user(user)
 
 	dashboard = frappe.db.exists("CRM Dashboard", "Manager Dashboard")
 
@@ -169,12 +197,7 @@ def get_chart(
 		from_date = frappe.utils.get_first_day(from_date or frappe.utils.nowdate())
 		to_date = frappe.utils.get_last_day(to_date or frappe.utils.nowdate())
 
-	roles = frappe.get_roles(frappe.session.user)
-	is_sales_manager = "Sales Manager" in roles or "System Manager" in roles
-	is_sales_user = "Sales User" in roles and not is_sales_manager
-
-	if is_sales_user:
-		user = frappe.session.user
+	user = _resolve_scoped_user(user)
 
 	method_name = f"get_{name}"
 	if hasattr(frappe.get_attr("crm.api.dashboard"), method_name):
@@ -223,12 +246,12 @@ def get_total_leads(from_date: str | None = None, to_date: str | None = None, us
 	# Build conditions for current period
 	current_cond = (Lead.creation >= from_date) & (Lead.creation < to_date_plus_one)
 	if user:
-		current_cond = current_cond & (Lead.lead_owner == user)
+		current_cond = current_cond & _owner_condition(Lead.lead_owner, user)
 
 	# Build conditions for previous period
 	prev_cond = (Lead.creation >= prev_from_date) & (Lead.creation < from_date)
 	if user:
-		prev_cond = prev_cond & (Lead.lead_owner == user)
+		prev_cond = prev_cond & _owner_condition(Lead.lead_owner, user)
 
 	# Build query with CASE expressions
 	query = frappe.qb.from_(Lead).select(
@@ -275,14 +298,14 @@ def get_ongoing_deals(from_date: str | None = None, to_date: str | None = None, 
 		& (Status.type.notin(["Won", "Lost"]))
 	)
 	if user:
-		current_cond = current_cond & (Deal.deal_owner == user)
+		current_cond = current_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Build conditions for previous period
 	prev_cond = (
 		(Deal.creation >= prev_from_date) & (Deal.creation < from_date) & (Status.type.notin(["Won", "Lost"]))
 	)
 	if user:
-		prev_cond = prev_cond & (Deal.deal_owner == user)
+		prev_cond = prev_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Build query with CASE expressions
 	query = (
@@ -336,14 +359,14 @@ def get_average_ongoing_deal_value(
 		& (Status.type.notin(["Won", "Lost"]))
 	)
 	if user:
-		current_cond = current_cond & (Deal.deal_owner == user)
+		current_cond = current_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Build conditions for previous period
 	prev_cond = (
 		(Deal.creation >= prev_from_date) & (Deal.creation < from_date) & (Status.type.notin(["Won", "Lost"]))
 	)
 	if user:
-		prev_cond = prev_cond & (Deal.deal_owner == user)
+		prev_cond = prev_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Calculate deal value with exchange rate
 	deal_value_expr = Deal.deal_value * IfNull(Deal.exchange_rate, 1)
@@ -394,12 +417,12 @@ def get_won_deals(from_date: str | None = None, to_date: str | None = None, user
 		(Deal.closed_date >= from_date) & (Deal.closed_date < to_date_plus_one) & (Status.type == "Won")
 	)
 	if user:
-		current_cond = current_cond & (Deal.deal_owner == user)
+		current_cond = current_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Build conditions for previous period
 	prev_cond = (Deal.closed_date >= prev_from_date) & (Deal.closed_date < from_date) & (Status.type == "Won")
 	if user:
-		prev_cond = prev_cond & (Deal.deal_owner == user)
+		prev_cond = prev_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Build query with CASE expressions
 	query = (
@@ -451,12 +474,12 @@ def get_average_won_deal_value(
 		(Deal.closed_date >= from_date) & (Deal.closed_date < to_date_plus_one) & (Status.type == "Won")
 	)
 	if user:
-		current_cond = current_cond & (Deal.deal_owner == user)
+		current_cond = current_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Build conditions for previous period
 	prev_cond = (Deal.closed_date >= prev_from_date) & (Deal.closed_date < from_date) & (Status.type == "Won")
 	if user:
-		prev_cond = prev_cond & (Deal.deal_owner == user)
+		prev_cond = prev_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Calculate deal value with exchange rate
 	deal_value_expr = Deal.deal_value * IfNull(Deal.exchange_rate, 1)
@@ -505,12 +528,12 @@ def get_average_deal_value(from_date: str | None = None, to_date: str | None = N
 	# Build conditions for current period
 	current_cond = (Deal.creation >= from_date) & (Deal.creation < to_date_plus_one) & (Status.type != "Lost")
 	if user:
-		current_cond = current_cond & (Deal.deal_owner == user)
+		current_cond = current_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Build conditions for previous period
 	prev_cond = (Deal.creation >= prev_from_date) & (Deal.creation < from_date) & (Status.type != "Lost")
 	if user:
-		prev_cond = prev_cond & (Deal.deal_owner == user)
+		prev_cond = prev_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Calculate deal value with exchange rate
 	deal_value_expr = Deal.deal_value * IfNull(Deal.exchange_rate, 1)
@@ -564,7 +587,7 @@ def get_average_time_to_close_a_lead(
 	# Base condition: closed_date is not null and status type is Won
 	base_cond = (Deal.closed_date.isnotnull()) & (Status.type == "Won")
 	if user:
-		base_cond = base_cond & (Deal.deal_owner == user)
+		base_cond = base_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Current period condition
 	current_cond = (Deal.closed_date >= from_date) & (Deal.closed_date < to_date_plus_one)
@@ -629,7 +652,7 @@ def get_average_time_to_close_a_deal(
 	# Base condition: closed_date is not null and status type is Won
 	base_cond = (Deal.closed_date.isnotnull()) & (Status.type == "Won")
 	if user:
-		base_cond = base_cond & (Deal.deal_owner == user)
+		base_cond = base_cond & _owner_condition(Deal.deal_owner, user)
 
 	# Current period condition
 	current_cond = (Deal.closed_date >= from_date) & (Deal.closed_date < to_date_plus_one)
@@ -701,7 +724,7 @@ def get_sales_trend(from_date: str | None = None, to_date: str | None = None, us
 	)
 
 	if user:
-		leads_query = leads_query.where(Lead.lead_owner == user)
+		leads_query = leads_query.where_owner_condition(Lead.lead_owner, user)
 
 	leads_query = leads_query.groupby(Date(Lead.creation))
 
@@ -720,7 +743,7 @@ def get_sales_trend(from_date: str | None = None, to_date: str | None = None, us
 	)
 
 	if user:
-		deals_query = deals_query.where(Deal.deal_owner == user)
+		deals_query = deals_query.where_owner_condition(Deal.deal_owner, user)
 
 	deals_query = deals_query.groupby(Date(Deal.creation))
 
@@ -823,7 +846,7 @@ def get_forecasted_revenue(from_date: str | None = None, to_date: str | None = N
 	)
 
 	if user:
-		query = query.where(CRMDeal.deal_owner == user)
+		query = query.where_owner_condition(CRMDeal.deal_owner, user)
 
 	result = query.run(as_dict=True)
 
@@ -864,9 +887,6 @@ def get_funnel_conversion(from_date: str | None = None, to_date: str | None = No
 		...
 	]
 	"""
-	lead_conds = ""
-	deal_conds = ""
-
 	if not from_date or not to_date:
 		from_date = frappe.utils.get_first_day(from_date or frappe.utils.nowdate())
 		to_date = frappe.utils.get_last_day(to_date or frappe.utils.nowdate())
@@ -875,8 +895,6 @@ def get_funnel_conversion(from_date: str | None = None, to_date: str | None = No
 	deal_filters = {"from": from_date, "to": to_date}
 
 	if user:
-		lead_conds += " AND lead_owner = %(user)s"
-		deal_conds += " AND deal_owner = %(user)s"
 		lead_filters["user"] = user
 		deal_filters["user"] = user
 
@@ -892,14 +910,14 @@ def get_funnel_conversion(from_date: str | None = None, to_date: str | None = No
 	)
 
 	if user:
-		query = query.where(CRMLead.lead_owner == user)
+		query = query.where_owner_condition(CRMLead.lead_owner, user)
 
 	total_leads = query.run(as_dict=True)
 	total_leads_count = total_leads[0].count if total_leads else 0
 
 	result.append({"stage": "Leads", "count": total_leads_count})
 
-	result += get_deal_status_change_counts(from_date, to_date, deal_conds, deal_filters)
+	result += get_deal_status_change_counts(from_date, to_date, deal_filters)
 
 	return {
 		"data": result or [],
@@ -956,7 +974,7 @@ def get_deals_by_stage_axis(
 	)
 
 	if user:
-		query = query.where(CRMDeal.deal_owner == user)
+		query = query.where_owner_condition(CRMDeal.deal_owner, user)
 
 	result = query.run(as_dict=True)
 
@@ -1005,7 +1023,7 @@ def get_deals_by_stage_donut(
 	)
 
 	if user:
-		query = query.where(CRMDeal.deal_owner == user)
+		query = query.where_owner_condition(CRMDeal.deal_owner, user)
 
 	result = query.run(as_dict=True)
 
@@ -1047,7 +1065,7 @@ def get_lost_deal_reasons(from_date: str | None = None, to_date: str | None = No
 	)
 
 	if user:
-		query = query.where(CRMDeal.deal_owner == user)
+		query = query.where_owner_condition(CRMDeal.deal_owner, user)
 
 	result = query.run(as_dict=True)
 
@@ -1094,7 +1112,7 @@ def get_leads_by_source(from_date: str | None = None, to_date: str | None = None
 	)
 
 	if user:
-		query = query.where(CRMLead.lead_owner == user)
+		query = query.where_owner_condition(CRMLead.lead_owner, user)
 
 	result = query.run(as_dict=True)
 
@@ -1132,7 +1150,7 @@ def get_deals_by_source(from_date: str | None = None, to_date: str | None = None
 	)
 
 	if user:
-		query = query.where(CRMDeal.deal_owner == user)
+		query = query.where_owner_condition(CRMDeal.deal_owner, user)
 
 	result = query.run(as_dict=True)
 
@@ -1177,7 +1195,7 @@ def get_deals_by_territory(from_date: str | None = None, to_date: str | None = N
 	)
 
 	if user:
-		query = query.where(CRMDeal.deal_owner == user)
+		query = query.where_owner_condition(CRMDeal.deal_owner, user)
 
 	result = query.run(as_dict=True)
 
@@ -1240,7 +1258,7 @@ def get_deals_by_salesperson(
 	)
 
 	if user:
-		query = query.where(CRMDeal.deal_owner == user)
+		query = query.where_owner_condition(CRMDeal.deal_owner, user)
 
 	result = query.run(as_dict=True)
 
@@ -1277,7 +1295,6 @@ def get_base_currency_symbol():
 def get_deal_status_change_counts(
 	from_date: str | None = None,
 	to_date: str | None = None,
-	deal_conds: str = "",
 	filters: dict | None = None,
 ):
 	"""
@@ -1315,9 +1332,8 @@ def get_deal_status_change_counts(
 		.orderby(TargetStatus.position)
 	)
 
-	# Handle optional user filter if deal_conds contains user condition
 	if filters and filters.get("user"):
-		query = query.where(CRMDeal.deal_owner == filters["user"])
+		query = query.where(_owner_condition(CRMDeal.deal_owner, filters["user"]))
 
 	result = query.run(as_dict=True)
 	return result or []

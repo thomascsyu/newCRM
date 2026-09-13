@@ -3,6 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import flt
 
 
 class CRMProducts(Document):
@@ -28,6 +29,48 @@ class CRMProducts(Document):
 	# end: auto-generated types
 
 	pass
+
+
+def calculate_product_amounts(row):
+	"""Recompute one product row's amount/discount_amount/net_amount from
+	qty, rate and discount_percentage. Server-side source of truth: the
+	browser form script recomputes the same fields for a live preview, but
+	imports and direct API/document writes never go through it."""
+	qty = flt(row.qty)
+	rate = flt(row.rate)
+	amount = flt(qty * rate, row.precision("amount"))
+	row.amount = amount
+
+	if not amount:
+		row.discount_amount = 0
+		row.net_amount = 0
+		return
+
+	discount_percentage = flt(row.discount_percentage)
+	if discount_percentage:
+		discount_percentage = max(0.0, min(discount_percentage, 100.0))
+		row.discount_percentage = discount_percentage
+		row.discount_amount = flt(amount * discount_percentage / 100, row.precision("discount_amount"))
+		row.net_amount = flt(amount - row.discount_amount, row.precision("net_amount"))
+	else:
+		row.discount_amount = 0
+		row.net_amount = amount
+
+
+def calculate_products_totals(doc):
+	"""Recompute every product row plus the parent's total/net_total.
+	Call from CRM Lead/CRM Deal validate() so persisted totals can never
+	drift from qty/rate/discount, regardless of what the client submitted."""
+	total = 0.0
+	net_total = 0.0
+
+	for row in doc.get("products") or []:
+		calculate_product_amounts(row)
+		total += flt(row.amount)
+		net_total += flt(row.net_amount)
+
+	doc.total = flt(total, doc.precision("total"))
+	doc.net_total = flt(net_total, doc.precision("net_total"))
 
 
 @frappe.whitelist()
@@ -71,24 +114,15 @@ def get_product_details_script(doctype):
 		+ """
   update_total() {
     let total = 0
-    let total_qty = 0
     let net_total = 0
-    let discount_applied = false
 
     this.doc.products.forEach((d) => {
-      total += d.amount
-      net_total += d.net_amount
-      if (d.discount_percentage > 0) {
-        discount_applied = true
-      }
+      total += d.amount || 0
+      net_total += d.net_amount || 0
     })
 
     this.doc.total = total
-    this.doc.net_total = net_total || total
-
-    if (!net_total && discount_applied) {
-      this.doc.net_total = net_total
-    }
+    this.doc.net_total = net_total
   }
 }
 
@@ -132,13 +166,15 @@ class CRMProducts {
 
   discount_percentage(idx) {
     let row = this.doc.getRow('products', idx)
-    if (!row.discount_percentage) {
-      row.net_amount = row.amount
+    if (!row.amount) {
       row.discount_amount = 0
-    }
-    if (row.discount_percentage && row.amount) {
+      row.net_amount = 0
+    } else if (row.discount_percentage) {
       row.discount_amount = (row.discount_percentage / 100) * row.amount
       row.net_amount = row.amount - row.discount_amount
+    } else {
+      row.net_amount = row.amount
+      row.discount_amount = 0
     }
     this.doc.trigger('update_total')
   }
