@@ -241,8 +241,10 @@ class GoogleAuthTests(unittest.TestCase):
         auth.before_request()
 
     def test_oauth_start_page_is_public(self):
-        self.f.request.path = auth.START_PAGE
-        auth.before_request()
+        for path in (auth.START_PAGE, "/company_oauth"):
+            with self.subTest(path=path):
+                self.f.request.path = path
+                auth.before_request()
 
 
 if __name__ == '__main__':
