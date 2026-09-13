@@ -206,6 +206,12 @@ def get_quick_filters(doctype: str, cached: bool = True):
 
 @frappe.whitelist()
 def update_quick_filters(quick_filters: str, old_filters: str, doctype: str):
+	# This is shared, company-wide configuration (CRM Global Settings +
+	# each field's in_standard_filter property), not a per-user preference --
+	# restrict it the same way other cross-user settings are restricted.
+	if not set(frappe.get_roles()) & {"System Manager", "Sales Manager"}:
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
 	quick_filters = json.loads(quick_filters)
 	old_filters = json.loads(old_filters)
 
@@ -706,7 +712,13 @@ def get_linked_docs_of_document(doctype: str, docname: str):
 	dynamic_linked_docs = get_dynamic_linked_docs(doc)
 
 	linked_docs.extend(dynamic_linked_docs)
-	linked_docs = list({doc["reference_docname"]: doc for doc in linked_docs}.values())
+	# Keyed by (reference_doctype, reference_docname): a bare docname is only
+	# unique within its own doctype, so keying on the name alone could dedupe
+	# away a genuinely distinct linked document of a different doctype that
+	# happens to share the same name.
+	linked_docs = list(
+		{(doc.get("reference_doctype"), doc.get("reference_docname")): doc for doc in linked_docs}.values()
+	)
 
 	docs_data = []
 	for doc in linked_docs:

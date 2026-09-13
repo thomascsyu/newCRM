@@ -19,11 +19,12 @@ def get_sla(doc: Document) -> Document:
 	priority = doc.communication_status
 	q = (
 		frappe.qb.from_(SLA)
-		.select(SLA.name, SLA.condition)
+		.select(SLA.name, SLA.condition, SLA.default)
 		.where(SLA.apply_on == doc.doctype)
 		.where(SLA.enabled)
 		.where(Criterion.any([SLA.start_date.isnull(), SLA.start_date <= now]))
 		.where(Criterion.any([SLA.end_date.isnull(), SLA.end_date >= now]))
+		.orderby(SLA.creation)
 	)
 	if priority:
 		q = (

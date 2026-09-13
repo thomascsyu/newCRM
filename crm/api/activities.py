@@ -171,9 +171,9 @@ def get_deal_activities(name: str):
 		}
 		activities.append(activity)
 
-	calls = calls + get_linked_calls(name).get("calls", [])
-	notes = notes + get_linked_notes(name) + get_linked_calls(name).get("notes", [])
-	tasks = tasks + get_linked_tasks(name) + get_linked_calls(name).get("tasks", [])
+	calls = calls + get_linked_calls("CRM Deal", name).get("calls", [])
+	notes = notes + get_linked_notes("CRM Deal", name) + get_linked_calls("CRM Deal", name).get("notes", [])
+	tasks = tasks + get_linked_tasks("CRM Deal", name) + get_linked_calls("CRM Deal", name).get("tasks", [])
 	attachments = attachments + get_attachments("CRM Deal", name)
 
 	activities.sort(key=lambda x: x["creation"], reverse=True)
@@ -316,9 +316,9 @@ def get_lead_activities(name: str):
 		}
 		activities.append(activity)
 
-	calls = get_linked_calls(name).get("calls", [])
-	notes = get_linked_notes(name) + get_linked_calls(name).get("notes", [])
-	tasks = get_linked_tasks(name) + get_linked_calls(name).get("tasks", [])
+	calls = get_linked_calls("CRM Lead", name).get("calls", [])
+	notes = get_linked_notes("CRM Lead", name) + get_linked_calls("CRM Lead", name).get("notes", [])
+	tasks = get_linked_tasks("CRM Lead", name) + get_linked_calls("CRM Lead", name).get("tasks", [])
 	attachments = get_attachments("CRM Lead", name)
 
 	activities.sort(key=lambda x: x["creation"], reverse=True)
@@ -400,10 +400,10 @@ def parse_grouped_versions(versions: list):
 	return version
 
 
-def get_linked_calls(name: str):
+def get_linked_calls(reference_doctype: str, name: str):
 	calls = frappe.db.get_all(
 		"CRM Call Log",
-		filters={"reference_docname": name},
+		filters={"reference_doctype": reference_doctype, "reference_docname": name},
 		fields=[
 			"name",
 			"caller",
@@ -422,7 +422,9 @@ def get_linked_calls(name: str):
 	)
 
 	linked_calls = frappe.db.get_all(
-		"Dynamic Link", filters={"link_name": name, "parenttype": "CRM Call Log"}, pluck="parent"
+		"Dynamic Link",
+		filters={"link_doctype": reference_doctype, "link_name": name, "parenttype": "CRM Call Log"},
+		pluck="parent",
 	)
 
 	notes = []
@@ -494,19 +496,19 @@ def get_linked_calls(name: str):
 	return {"calls": calls, "notes": notes, "tasks": tasks}
 
 
-def get_linked_notes(name: str):
+def get_linked_notes(reference_doctype: str, name: str):
 	notes = frappe.db.get_all(
 		"FCRM Note",
-		filters={"reference_docname": name},
+		filters={"reference_doctype": reference_doctype, "reference_docname": name},
 		fields=["name", "title", "content", "owner", "modified", "creation"],
 	)
 	return notes or []
 
 
-def get_linked_tasks(name: str):
+def get_linked_tasks(reference_doctype: str, name: str):
 	tasks = frappe.db.get_all(
 		"CRM Task",
-		filters={"reference_docname": name},
+		filters={"reference_doctype": reference_doctype, "reference_docname": name},
 		fields=[
 			"name",
 			"title",
