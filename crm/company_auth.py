@@ -21,8 +21,23 @@ from crm.security.workspace import company_email, normalize_domain, public_origi
 
 CALLBACK = "/api/method/crm.company_auth.callback"
 START = "/api/method/crm.company_auth.start"
+START_PAGE = "/company-oauth"
 HEALTH = "/api/method/crm.company_auth.health"
 COOKIE = "__Host-crm_oauth"
+OAUTH_DONE = "company_oauth_done:"
+# Shown on /company-login?error= after the Google account picker. Keys are the
+# only values accepted from the query string so a forged parameter cannot
+# inject copy. AuthenticationError on the callback used to render Frappe's
+# generic "Session Expired" page instead of these messages.
+OAUTH_ERRORS = {
+    "expired": "Invalid or expired Google sign-in. Start again.",
+    "cancelled": "Google sign-in was cancelled. Start again.",
+    "unverified": "Google sign-in could not be verified. Use your company account and try again.",
+    "disabled": "Your company account has not been enabled for CRM. Contact your administrator.",
+    "role": "Your account has no CRM role. Contact your administrator.",
+    "identity": "This Google identity does not match the provisioned CRM account.",
+    "config": "Google sign-in is not configured. Contact your administrator.",
+}
 # Frappe's own Web Form submission handler -- see crm.api.form / crm.www.crm_form,
 # which build published, login_required=0 Web Forms specifically for anonymous
 # prospect capture (marketing site embeds, webinar sign-ups).
@@ -50,6 +65,18 @@ def _redirect(location):
     frappe.local.response.update(type="redirect", location=location)
 
 
+def oauth_login_path(code=None):
+    if code in OAUTH_ERRORS:
+        return "/company-login?error=" + code
+    return "/company-login"
+
+
+def _fail_oauth(code):
+    """Browser OAuth endpoints must not render Frappe's 401 Session Expired page."""
+    _set_oauth_cookie("", max_age=0)
+    _redirect(oauth_login_path(code))
+
+
 def _require_sign_in(message="Sign in with your company Google Workspace account."):
     # before_request runs outside the website renderer, which is the part of
     # Frappe that handles frappe.Redirect. Return a real HTTP redirect here.
@@ -58,74 +85,138 @@ def _require_sign_in(message="Sign in with your company Google Workspace account
     _deny(message)
 
 
-@frappe.whitelist(allow_guest=True, methods=["GET"])
-@rate_limit(limit=20, seconds=60)
-def start():
+def _signed_in():
+    return frappe.session.user != "Guest" and frappe.session.data.get("company_google_login") == frappe.session.user
+
+
+def _cookie_secret(key):
+    value = (frappe.request.cookies.get(key) or "").strip()
+    return value if value and value != "Guest" else ""
+
+
+def _binding_raw():
+    # Prefer a cookie the browser already stored on /company-login. Safari often
+    # drops a cookie that is first set on a 302 to accounts.google.com.
+    return _cookie_secret("sid") or _cookie_secret(COOKIE) or secrets.token_urlsafe(32)
+
+
+def _binding_ok(pending):
+    expected = (pending or {}).get("binding") or ""
+    if not expected:
+        return False
+    for raw in (_cookie_secret("sid"), _cookie_secret(COOKIE)):
+        if raw and secrets.compare_digest(expected, hashlib.sha256(raw.encode()).hexdigest()):
+            return True
+    return False
+
+
+def _set_oauth_cookie(value, max_age=600):
+    frappe.local.cookie_manager.set_cookie(COOKIE, value, secure=True, httponly=True, samesite="Lax", max_age=max_age)
+
+
+def begin_google_sign_in():
+    """Create PKCE state and return the Google authorization URL.
+
+    Called from the /company-oauth HTML page so Set-Cookie happens on a 200
+    document response, not on a bounce redirect to Google.
+    """
     domain, origin, client_id, _ = configuration()
-    state, binding, nonce, verifier = [secrets.token_urlsafe(32) for _ in range(4)]
+    state, nonce, verifier = [secrets.token_urlsafe(32) for _ in range(3)]
+    raw = _binding_raw()
     frappe.cache.set_value("company_oauth:" + state, {
-        "binding": hashlib.sha256(binding.encode()).hexdigest(),
+        "binding": hashlib.sha256(raw.encode()).hexdigest(),
         "nonce": nonce, "verifier": verifier,
     }, expires_in_sec=600)
-    frappe.local.cookie_manager.set_cookie(COOKIE, binding, secure=True, httponly=True, samesite="Lax", max_age=600)
+    _set_oauth_cookie(raw)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
-    _redirect("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
+    return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
         "client_id": client_id, "redirect_uri": origin + CALLBACK,
         "response_type": "code", "scope": "openid email profile", "state": state,
         "nonce": nonce, "hd": domain, "prompt": "select_account",
         "code_challenge": challenge, "code_challenge_method": "S256",
-    }))
+    })
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+@rate_limit(limit=20, seconds=60)
+def start():
+    # Do not Set-Cookie on this 302: iOS Safari drops cookies first seen on a
+    # bounce to a third party. The HTML start page stores the binding instead.
+    _redirect(START_PAGE)
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 @rate_limit(limit=30, seconds=60)
 def callback(code: str | None = None, state: str | None = None, error: str | None = None):
-    domain, origin, client_id, secret = configuration()
+    try:
+        domain, origin, client_id, secret = configuration()
+    except frappe.AuthenticationError:
+        _fail_oauth("config")
+        return
     if not state or len(state) > 100:
-        _deny("Invalid or expired Google sign-in. Start again.")
-    # Atomically consume state, even if two callback requests arrive together.
+        _fail_oauth("expired")
+        return
+    # Hold the lock through login so a second mobile callback waits, then
+    # sees the completion marker instead of Frappe's 401 Session Expired page.
     with frappe.cache.lock("company_oauth_lock:" + state, timeout=10):
         pending = frappe.cache.get_value("company_oauth:" + state)
+        if not pending:
+            if frappe.cache.get_value(OAUTH_DONE + state) or _signed_in():
+                _redirect("/crm")
+                return
+            _fail_oauth("expired")
+            return
+        if not _binding_ok(pending):
+            _fail_oauth("expired")
+            return
+        if error or not code:
+            frappe.cache.delete_value("company_oauth:" + state)
+            _fail_oauth("cancelled")
+            return
+        try:
+            response = requests.post("https://oauth2.googleapis.com/token", data={
+                "code": code, "client_id": client_id, "client_secret": secret,
+                "redirect_uri": origin + CALLBACK, "grant_type": "authorization_code",
+                "code_verifier": pending["verifier"],
+            }, timeout=15)
+            response.raise_for_status()
+            token = response.json()["id_token"]
+            # google-auth verifies Google's signature, issuer, expiry and our audience.
+            claims = id_token.verify_oauth2_token(token, Request(), audience=client_id)
+            email = validate_claims(claims, domain, pending["nonce"])
+        except (requests.RequestException, GoogleAuthError, ValueError, KeyError):
+            frappe.cache.delete_value("company_oauth:" + state)
+            # Do not expose authorization codes, tokens or secrets in errors/logs.
+            _fail_oauth("unverified")
+            return
+        user = frappe.get_doc("User", email) if frappe.db.exists("User", email) else None
+        if not user or not user.enabled or user.user_type != "System User":
+            frappe.cache.delete_value("company_oauth:" + state)
+            _fail_oauth("disabled")
+            return
+        if not set(frappe.get_roles(email)).intersection({"System Manager", "Sales Manager", "Sales User"}):
+            frappe.cache.delete_value("company_oauth:" + state)
+            _fail_oauth("role")
+            return
+        # Bind an existing provisioned user to a stable Google subject on first login.
+        # A subsequently recreated Workspace mailbox cannot silently inherit access.
+        if user.get("company_google_subject") and user.company_google_subject != claims["sub"]:
+            frappe.cache.delete_value("company_oauth:" + state)
+            _fail_oauth("identity")
+            return
+        if not user.get("company_google_subject"):
+            frappe.db.set_value("User", email, "company_google_subject", claims["sub"])
+        frappe.flags.company_google_verified = email
+        frappe.local.login_manager.login_as(email)
+        # An expired incoming session may have queued cookie deletions during request
+        # initialization. Do not erase the new verified session when cookies flush.
+        cookies = frappe.local.cookie_manager
+        cookies.to_delete = [key for key in cookies.to_delete if key not in cookies.cookies]
+        frappe.local.flags.commit = True
         frappe.cache.delete_value("company_oauth:" + state)
-    binding = frappe.request.cookies.get(COOKIE, "")
-    frappe.local.cookie_manager.set_cookie(COOKIE, "", secure=True, httponly=True, max_age=0)
-    if not pending or not binding or not secrets.compare_digest(pending["binding"], hashlib.sha256(binding.encode()).hexdigest()):
-        _deny("Invalid or expired Google sign-in. Start again.")
-    if error or not code:
-        _deny("Google sign-in was cancelled. Start again.")
-    try:
-        response = requests.post("https://oauth2.googleapis.com/token", data={
-            "code": code, "client_id": client_id, "client_secret": secret,
-            "redirect_uri": origin + CALLBACK, "grant_type": "authorization_code",
-            "code_verifier": pending["verifier"],
-        }, timeout=15)
-        response.raise_for_status()
-        token = response.json()["id_token"]
-        # google-auth verifies Google's signature, issuer, expiry and our audience.
-        claims = id_token.verify_oauth2_token(token, Request(), audience=client_id)
-        email = validate_claims(claims, domain, pending["nonce"])
-    except (requests.RequestException, GoogleAuthError, ValueError, KeyError):
-        # Do not expose authorization codes, tokens or secrets in errors/logs.
-        _deny("Google sign-in could not be verified. Use your company account and try again.")
-    user = frappe.get_doc("User", email) if frappe.db.exists("User", email) else None
-    if not user or not user.enabled or user.user_type != "System User":
-        _deny("Your company account has not been enabled for CRM. Contact your administrator.")
-    if not set(frappe.get_roles(email)).intersection({"System Manager", "Sales Manager", "Sales User"}):
-        _deny("Your account has no CRM role. Contact your administrator.")
-    # Bind an existing provisioned user to a stable Google subject on first login.
-    # A subsequently recreated Workspace mailbox cannot silently inherit access.
-    if user.get("company_google_subject") and user.company_google_subject != claims["sub"]:
-        _deny("This Google identity does not match the provisioned CRM account.")
-    if not user.get("company_google_subject"):
-        frappe.db.set_value("User", email, "company_google_subject", claims["sub"])
-    frappe.flags.company_google_verified = email
-    frappe.local.login_manager.login_as(email)
-    # An expired incoming session may have queued cookie deletions during request
-    # initialization. Do not erase the new verified session when cookies flush.
-    cookies = frappe.local.cookie_manager
-    cookies.to_delete = [key for key in cookies.to_delete if key not in cookies.cookies]
-    frappe.local.flags.commit = True
-    _redirect("/crm")
+        frappe.cache.set_value(OAUTH_DONE + state, True, expires_in_sec=120)
+        _set_oauth_cookie("", max_age=0)
+        _redirect("/crm")
 
 
 def before_login(login_manager=None):
@@ -193,7 +284,7 @@ def before_request():
     if request.headers.get("Authorization"):
         _deny("API token authentication is disabled for this internal CRM.")
     path = request.path.rstrip("/") or "/"
-    public = {"/", "/login", "/company-login", START, CALLBACK, HEALTH, "/api/method/logout"}
+    public = {"/", "/login", "/company-login", START_PAGE, START, CALLBACK, HEALTH, "/api/method/logout"}
     # Prevent ?cmd=... dispatch from turning a public page into a guest API gateway.
     if frappe.form_dict.get("cmd") and path in public and frappe.form_dict.cmd != "logout":
         _deny()
