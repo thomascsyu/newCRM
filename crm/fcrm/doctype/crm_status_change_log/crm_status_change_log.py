@@ -43,12 +43,16 @@ def get_duration(from_date, to_date):
 
 
 def add_status_change_log(doc):
-	to_status_type = frappe.db.get_value("CRM Deal Status", doc.status, "type") if doc.status else None
+	# Lead and Deal each have their own Status doctype (CRM Lead Status /
+	# CRM Deal Status) with independent "type" values -- always looking up
+	# CRM Deal Status left a Lead's log entries with the wrong/missing type.
+	status_doctype = f"{doc.doctype} Status"
+	to_status_type = frappe.db.get_value(status_doctype, doc.status, "type") if doc.status else None
 
 	if not doc.is_new():
 		previous_status = doc.get_doc_before_save().status if doc.get_doc_before_save() else None
 		previous_status_type = (
-			frappe.db.get_value("CRM Deal Status", previous_status, "type") if previous_status else None
+			frappe.db.get_value(status_doctype, previous_status, "type") if previous_status else None
 		)
 		if not doc.status_change_log and previous_status:
 			now_minus_one_minute = add_to_date(datetime.now(), minutes=-1)
@@ -83,3 +87,42 @@ def add_status_change_log(doc):
 			"log_owner": frappe.session.user,
 		},
 	)
+
+
+def log_status_change_for_db_set(doc, from_status, to_status):
+	"""Record a status transition applied via db_set() (e.g. Lead conversion
+	forcing status to "Qualified"), which never runs validate() and so never
+	triggers add_status_change_log()'s has_value_changed("status") path.
+
+	Inserted directly as a child row rather than through doc.save(), so this
+	doesn't re-run the parent's full validate() pipeline for a change that's
+	already been persisted."""
+	if from_status == to_status:
+		return
+
+	status_doctype = f"{doc.doctype} Status"
+	from_type = frappe.db.get_value(status_doctype, from_status, "type") if from_status else None
+	to_type = frappe.db.get_value(status_doctype, to_status, "type") if to_status else None
+	now = datetime.now()
+
+	last_idx = frappe.db.get_value(
+		"CRM Status Change Log", {"parenttype": doc.doctype, "parent": doc.name}, "max(idx)"
+	)
+
+	frappe.get_doc(
+		{
+			"doctype": "CRM Status Change Log",
+			"parenttype": doc.doctype,
+			"parentfield": "status_change_log",
+			"parent": doc.name,
+			"idx": (last_idx or 0) + 1,
+			"from": from_status or "",
+			"from_type": from_type or "",
+			"to": to_status or "",
+			"to_type": to_type or "",
+			"from_date": now,
+			"to_date": now,
+			"duration": 0,
+			"log_owner": frappe.session.user,
+		}
+	).insert(ignore_permissions=True)

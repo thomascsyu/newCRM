@@ -200,7 +200,10 @@ def sync_default_columns(view):
 @frappe.whitelist()
 def set_as_default(name: str | int | None = None, type: str | None = None, doctype: str | None = None):
 	if name:
-		frappe.db.set_value("CRM View Settings", name, "is_default", 1)
+		doc = frappe.get_doc("CRM View Settings", name)
+		check_permission(doc)
+		doc.db_set("is_default", 1)
+		doctype = doctype or doc.dt
 	else:
 		doc = create_or_update_standard_view({"type": type, "doctype": doctype, "is_default": 1})
 		name = doc.name

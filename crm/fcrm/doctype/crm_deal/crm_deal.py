@@ -7,6 +7,7 @@ from frappe.desk.form.assign_to import _add as assign
 from frappe.model.document import Document
 
 from crm.api.exchange_rate import get_exchange_rate
+from crm.fcrm.doctype.crm_products.crm_products import calculate_products_totals
 from crm.fcrm.doctype.crm_service_level_agreement.utils import get_sla
 from crm.fcrm.doctype.crm_status_change_log.crm_status_change_log import add_status_change_log
 from crm.fcrm.doctype.utils import add_or_remove_lost_reason_section_in_sidepanel
@@ -90,6 +91,7 @@ class CRMDeal(Document):
 		self.validate_status()
 		self.set_primary_contact()
 		self.set_primary_email_mobile_no()
+		calculate_products_totals(self)
 		if not self.is_new() and self.has_value_changed("deal_owner") and self.deal_owner:
 			self.share_with_agent(self.deal_owner)
 			self.assign_agent(self.deal_owner)
@@ -260,11 +262,10 @@ class CRMDeal(Document):
 		"""
 		Update the expected deal value based on the net total or total.
 		"""
-		if (
-			frappe.db.get_single_value("FCRM Settings", "auto_update_expected_deal_value")
-			and (self.net_total or self.total)
-			and self.expected_deal_value
-		):
+		if not frappe.db.get_single_value("FCRM Settings", "auto_update_expected_deal_value"):
+			return
+
+		if self.net_total or self.total:
 			self.expected_deal_value = self.net_total or self.total
 
 	def validate_forecasting_fields(self):
@@ -475,6 +476,9 @@ def create_contact(doc):
 
 @frappe.whitelist()
 def create_deal(doc: dict):
+	if not frappe.has_permission("CRM Deal", "create"):
+		frappe.throw(_("Not permitted to create Deal"), frappe.PermissionError)
+
 	deal = frappe.new_doc("CRM Deal")
 
 	contact = doc.get("contact")

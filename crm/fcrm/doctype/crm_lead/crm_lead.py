@@ -9,9 +9,11 @@ from frappe.desk.form.assign_to import _add as assign
 from frappe.model.document import Document
 from frappe.utils import validate_email_address
 
+from crm.fcrm.doctype.crm_products.crm_products import calculate_products_totals
 from crm.fcrm.doctype.crm_service_level_agreement.utils import get_sla
 from crm.fcrm.doctype.crm_status_change_log.crm_status_change_log import (
 	add_status_change_log,
+	log_status_change_for_db_set,
 )
 from crm.fcrm.doctype.utils import add_or_remove_lost_reason_section_in_sidepanel
 
@@ -91,6 +93,7 @@ class CRMLead(Document):
 		self.set_title()
 		self.validate_email()
 		self.validate_lost_reason()
+		calculate_products_totals(self)
 		if not self.is_new() and self.has_value_changed("lead_owner") and self.lead_owner:
 			self.share_with_agent(self.lead_owner)
 			self.assign_agent(self.lead_owner)
@@ -533,11 +536,24 @@ def convert_to_deal(
 	):
 		frappe.throw(_("Not allowed to convert Lead to Deal"), frappe.PermissionError)
 
-	lead = frappe.get_cached_doc("CRM Lead", lead)
+	# Idempotent: a retry or double submission against an already-converted
+	# lead must not spawn a second Deal. CRM Deal.lead has no unique DB
+	# constraint, so this looks at the actual created records (not just the
+	# `converted` flag, which a prior bug could have set without a Deal, or
+	# left unset despite one existing) and picks the earliest deterministically.
+	existing_deal = frappe.db.get_value("CRM Deal", {"lead": lead}, "name", order_by="creation asc")
+	if existing_deal:
+		return existing_deal
+
+	lead = frappe.get_doc("CRM Lead", lead)
 	if frappe.get_cached_value("CRM Lead Status", lead.status, "type") == "Lost":
 		frappe.throw(_("Cannot convert a lead with status {0}").format(lead.status))
-	if frappe.db.exists("CRM Lead Status", "Qualified"):
+	if lead.converted:
+		frappe.throw(_("Lead {0} has already been converted").format(lead.name))
+	if frappe.db.exists("CRM Lead Status", "Qualified") and lead.status != "Qualified":
+		previous_status = lead.status
 		lead.db_set("status", "Qualified")
+		log_status_change_for_db_set(lead, previous_status, "Qualified")
 	lead.db_set("converted", 1)
 	if lead.sla and frappe.db.exists("CRM Communication Status", "Replied"):
 		lead.db_set("communication_status", "Replied")

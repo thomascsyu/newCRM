@@ -53,7 +53,10 @@ def _process_event_notifications_by_interval(interval):
 		return
 
 	current_time = now_datetime()
-	current_user = frappe.session.user
+	# The scheduler runs as Administrator, not as any individual employee --
+	# so this must scan every user's events rather than filtering by whoever
+	# happens to be `frappe.session.user` in this job's context. Recipients
+	# are derived per event further down (see _get_recipients).
 	all_events_data = frappe.db.sql(
 		"""
 		SELECT
@@ -68,23 +71,20 @@ def _process_event_notifications_by_interval(interval):
 			en.before as before_value,
 			en.time as time_of_day,
 			en.interval as notification_interval,
-			ep.email as participant_email,
 			ep_all.participant_emails_csv,
 			CASE WHEN en.parent IS NULL THEN 0 ELSE 1 END as has_custom_notifications
 		FROM `tabEvent` e
 		LEFT JOIN `tabEvent Notifications` en ON e.name = en.parent AND en.interval = %s
-		LEFT JOIN `tabEvent Participants` ep ON e.name = ep.parent AND ep.email = %s
 		LEFT JOIN (
 			SELECT parent, GROUP_CONCAT(email) AS participant_emails_csv
 			FROM `tabEvent Participants`
 			GROUP BY parent
 		) AS ep_all ON ep_all.parent = e.name
 		WHERE (e.starts_on >= %s OR (%s >= e.starts_on AND %s < e.ends_on))
-		AND (e.owner = %s OR ep.email = %s)
 		AND e.status != 'Cancelled'
 		ORDER BY e.starts_on, e.name
 	""",
-		(interval, current_user, current_time, current_time, current_time, current_user, current_user),
+		(interval, current_time, current_time, current_time),
 		as_dict=True,
 	)
 
@@ -124,10 +124,15 @@ def _process_event_notifications_by_interval(interval):
 			if not (trigger_window_start <= current_time <= trigger_window_end):
 				continue
 
+			if _notification_already_sent(notification, interval, trigger_datetime):
+				continue
+
 			if notification.get("notification_type") == "Email":
 				_send_email_notification(notification, event_start, before_value, interval)
 			elif notification.get("notification_type") == "Notification":
 				_send_system_notification(notification)
+
+			_mark_notification_sent(notification, interval, trigger_datetime)
 
 		except Exception as e:
 			frappe.log_error(
@@ -297,39 +302,72 @@ def _split_participant_emails(participant_emails_csv):
 	return [email.strip() for email in participant_emails_csv.split(",") if email and email.strip()]
 
 
+def _get_recipients(notification) -> set:
+	"""Resolve the owner + participants of the underlying event. `notification`
+	may be a raw SQL row (custom per-event notification, frappe._dict) or a
+	plain dict built from FCRM Settings' global notification defaults -- use
+	.get() throughout so both work."""
+	recipients = set()
+
+	owner = notification.get("owner")
+	if owner and owner != "Administrator":
+		recipients.add(owner)
+
+	participant_emails = notification.get("event_participants") or []
+	if participant_emails:
+		recipients.update(participant_emails)
+	else:
+		event_doc = frappe.get_doc("Event", notification.get("event_name"))
+		for participant in event_doc.get("event_participants", []):
+			email = getattr(participant, "email", None)
+			if email:
+				recipients.add(email)
+
+	return {email for email in recipients if email}
+
+
+def _notification_dedup_key(notification, interval, trigger_datetime):
+	return "crm_event_notification_sent:{}:{}:{}:{}:{}".format(
+		notification.get("event_name"),
+		interval,
+		notification.get("before_value"),
+		notification.get("notification_type"),
+		trigger_datetime.isoformat(),
+	)
+
+
+def _notification_already_sent(notification, interval, trigger_datetime) -> bool:
+	return bool(frappe.cache.get_value(_notification_dedup_key(notification, interval, trigger_datetime)))
+
+
+def _mark_notification_sent(notification, interval, trigger_datetime):
+	# Long enough to outlive every trigger window this notification could be
+	# reconsidered in (see _get_trigger_window_duration), short enough not to
+	# grow the cache without bound.
+	frappe.cache.set_value(
+		_notification_dedup_key(notification, interval, trigger_datetime), 1, expires_in_sec=7 * 24 * 60 * 60
+	)
+
+
 def _send_email_notification(notification, event_start, before_value, interval):
 	"""Send email notification for an event"""
 
 	try:
-		recipients = set()
-		subject = f"Event Reminder: {notification.subject}"
-
-		if notification.owner and notification.owner != "Administrator":
-			recipients.add(notification.owner)
-
-		participant_emails = notification.get("event_participants") or []
-		if participant_emails:
-			recipients.update(participant_emails)
-		else:
-			event_doc = frappe.get_doc("Event", notification.event_name)
-			for participant in event_doc.get("event_participants", []):
-				email = getattr(participant, "email", None)
-				if email:
-					recipients.add(email)
-
-		recipients = [email for email in recipients if email]
-
+		recipients = list(_get_recipients(notification))
 		if not recipients:
 			return
+
+		subject = f"Event Reminder: {notification.get('subject')}"
 		time_remaining_text = _format_time_remaining(before_value, interval)
+		description = notification.get("description")
 
 		message = f"""
 		<div style="font-family: Arial, sans-serif; max-width: 600px;">
 			<h2 style="color: #333;">Event Reminder</h2>
 			<p>This is a reminder for your upcoming event:</p>
 			<div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0;">
-				<h3 style="margin: 0; color: #007bff;">{notification.subject}</h3>
-				{f'<p style="margin: 10px 0; color: #666;">{notification.description}</p>' if notification.description else ""}
+				<h3 style="margin: 0; color: #007bff;">{notification.get("subject")}</h3>
+				{f'<p style="margin: 10px 0; color: #666;">{description}</p>' if description else ""}
 				<p style="margin: 5px 0;"><strong>Start Time:</strong> {event_start.strftime("%Y-%m-%d %H:%M:%S")}</p>
 				<p style="margin: 5px 0;"><strong>Time Remaining:</strong> {time_remaining_text}</p>
 			</div>
@@ -342,12 +380,12 @@ def _send_email_notification(notification, event_start, before_value, interval):
 			subject=subject,
 			message=message,
 			reference_doctype="Event",
-			reference_name=notification.event_name,
+			reference_name=notification.get("event_name"),
 			now=True,
 		)
 
 	except Exception as e:
-		frappe.log_error(f"Failed to send email for event {notification.event_name}: {e!s}")
+		frappe.log_error(f"Failed to send email for event {notification.get('event_name')}: {e!s}")
 
 
 def _format_time_remaining(before_value, interval):
@@ -368,5 +406,9 @@ def _format_time_remaining(before_value, interval):
 
 
 def _send_system_notification(notification):
-	"""Send system notification for an event"""
-	frappe.publish_realtime("event_notification", notification)
+	"""Send a realtime notification to the event's owner and participants.
+	publish_realtime without a `user` reaches every connected session, not
+	just the people this event actually concerns."""
+	for user in _get_recipients(notification):
+		if frappe.db.exists("User", user):
+			frappe.publish_realtime("event_notification", notification, user=user)

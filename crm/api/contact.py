@@ -40,25 +40,26 @@ def get_linked_deals(contact: str):
 		distinct=True,
 	)
 
-	# get deals data
-	deals = []
-	for d in deal_names:
-		deal = frappe.get_cached_doc(
-			"CRM Deal",
-			d.parent,
-			fields=[
-				"name",
-				"organization",
-				"currency",
-				"deal_value",
-				"status",
-				"email",
-				"mobile_no",
-				"deal_owner",
-				"modified",
-			],
-		)
-		deals.append(deal.as_dict())
+	if not deal_names:
+		return []
+
+	# get_list applies the CRM Deal permission query conditions (sales hierarchy)
+	# and re-checks permission on every row, unlike get_cached_doc/get_all.
+	deals = frappe.get_list(
+		"CRM Deal",
+		filters={"name": ["in", [d.parent for d in deal_names]]},
+		fields=[
+			"name",
+			"organization",
+			"currency",
+			"deal_value",
+			"status",
+			"email",
+			"mobile_no",
+			"deal_owner",
+			"modified",
+		],
+	)
 
 	return deals
 
