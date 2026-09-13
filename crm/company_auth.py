@@ -114,6 +114,7 @@ def _set_oauth_cookie(value, max_age=600):
     frappe.local.cookie_manager.set_cookie(COOKIE, value, secure=True, httponly=True, samesite="Lax", max_age=max_age)
 
 
+@rate_limit(limit=20, seconds=60)
 def begin_google_sign_in():
     """Create PKCE state and return the Google authorization URL.
 

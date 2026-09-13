@@ -140,7 +140,7 @@ class GoogleAuthTests(unittest.TestCase):
     def test_begin_sign_in_reuses_existing_session_cookie(self):
         self.f.cache.data.clear()
         self.f.request.cookies = {"sid": "already-established"}
-        url = auth.begin_google_sign_in()
+        url = inspect.unwrap(auth.begin_google_sign_in)()
         self.assertTrue(url.startswith("https://accounts.google.com/o/oauth2/v2/auth?"))
         stored = next(value for key, value in self.f.cache.data.items() if key.startswith("company_oauth:"))
         self.assertEqual(stored["binding"], hashlib.sha256(b"already-established").hexdigest())
