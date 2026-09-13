@@ -1,4 +1,5 @@
 """OAuth flow tests with mocked Google transport, Redis and Frappe services."""
+import base64
 import hashlib
 import inspect
 import os
@@ -40,11 +41,14 @@ class GoogleAuthTests(unittest.TestCase):
             request=NS(cookies={auth.COOKIE: "browser-binding"}, path=auth.CALLBACK, method="GET", headers={}),
             form_dict=Bag(), session=NS(user="Guest", data=Bag()),
             local=NS(response=Bag(), flags=Bag(), cookie_manager=Mock(to_delete=[], cookies={}), login_manager=Mock()),
-            db=Mock(), get_doc=Mock(return_value=self.user), get_roles=Mock(return_value=["Sales User"]),
+            db=Mock(), log_error=Mock(), get_doc=Mock(return_value=self.user), get_roles=Mock(return_value=["Sales User"]),
             AuthenticationError=PermissionError, throw=lambda message, exception: (_ for _ in ()).throw(exception(message)))
         self.patch = patch.object(auth, "frappe", self.f)
         self.patch.start()
         self.addCleanup(self.patch.stop)
+        self.clock = patch.object(auth.time, "time", return_value=1_800_000_000)
+        self.clock.start()
+        self.addCleanup(self.clock.stop)
         self.f.db.exists.return_value = True
         self.f.db.get_value.return_value = 1
         self.oauth_cookie = auth._pack_oauth_state({
@@ -53,12 +57,13 @@ class GoogleAuthTests(unittest.TestCase):
             "nonce": "nonce",
             "verifier": "verifier",
             "redirect_to": "/crm/leads",
+            "expires_at": int(auth.time.time()) + 600,
         }, "secret")
         self.f.request.cookies = {auth.COOKIE: self.oauth_cookie}
         self.f.cache.set_value("company_oauth:state", {"binding": hashlib.sha256(b"browser-binding").hexdigest(), "nonce": "nonce", "verifier": "verifier", "redirect_to": "/crm/leads"})
         self.claims = {"email": "rep@company.test", "email_verified": True, "hd": "company.test", "nonce": "nonce", "sub": "subject"}
 
-    def callback(self, claims=None, verify_error=None, token_response=None, token_ok=True, userinfo_response=None, userinfo_error=None):
+    def callback(self, claims=None, verify_error=None, token_response=None, token_ok=True, userinfo_response=None, userinfo_error=None, state="state"):
         token_response = token_response or {"id_token": "signed-token", "access_token": "access-token"}
         token_http = Mock()
         token_http.ok = token_ok
@@ -69,25 +74,25 @@ class GoogleAuthTests(unittest.TestCase):
         userinfo_http.json.return_value = userinfo_response or (claims or self.claims)
         userinfo_http.raise_for_status = Mock()
 
-        def request_side_effect(method, url, **kwargs):
+        def request_side_effect(url, **kwargs):
             if url == auth.GOOGLE_USERINFO_URL:
                 if userinfo_error:
                     raise userinfo_error
                 return userinfo_http
-            raise AssertionError(f"unexpected request: {method} {url}")
+            raise AssertionError(f"unexpected request: GET {url}")
 
         with patch.object(auth.requests, "post", return_value=token_http) as post, patch.object(
             auth.requests, "get", side_effect=request_side_effect,
         ), patch.object(auth.id_token, "verify_oauth2_token", return_value=claims or self.claims, side_effect=verify_error) as verify:
-            inspect.unwrap(auth.callback)(code="code", state="state")
-            if token_ok and not verify_error:
-                self.assertEqual(post.call_args.kwargs['data']['code_verifier'], 'verifier')
-                self.assertEqual(post.call_args.kwargs['data']['redirect_uri'], auth.oauth_redirect_uri("https://crm.company.test"))
-                self.assertEqual(verify.call_args.kwargs['audience'], 'client')
-                self.assertEqual(verify.call_args.kwargs['clock_skew_in_seconds'], auth.OAUTH_CLOCK_SKEW_SECONDS)
+            inspect.unwrap(auth.callback)(code="code", state=state)
+        return post, verify
 
     def test_valid_login_uses_verified_email(self):
-        self.callback()
+        post, verify = self.callback()
+        self.assertEqual(post.call_args.kwargs['data']['code_verifier'], 'verifier')
+        self.assertEqual(post.call_args.kwargs['data']['redirect_uri'], auth.oauth_redirect_uri("https://crm.company.test"))
+        self.assertEqual(verify.call_args.kwargs['audience'], 'client')
+        self.assertEqual(verify.call_args.kwargs['clock_skew_in_seconds'], auth.OAUTH_CLOCK_SKEW_SECONDS)
         self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
         self.assertEqual(self.f.local.response.location, "/crm/leads")
         self.assertTrue(self.f.local.flags.commit)
@@ -103,7 +108,9 @@ class GoogleAuthTests(unittest.TestCase):
 
     def test_replayed_callback_returns_to_crm(self):
         self.callback()
-        inspect.unwrap(auth.callback)(code="code", state="state")
+        post, verify = self.callback()
+        post.assert_not_called()
+        verify.assert_not_called()
         self.assertEqual(self.f.local.login_manager.login_as.call_count, 1)
         self.assertEqual(self.f.local.response.location, "/crm")
 
@@ -124,6 +131,101 @@ class GoogleAuthTests(unittest.TestCase):
         self.callback()
         self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
 
+    def test_fresh_guest_sign_in_round_trip(self):
+        # Model the real browser: Frappe sets sid=Guest, then the start page sets
+        # an OAuth cookie which is returned unchanged on Google's callback.
+        for cache_miss in (False, True):
+            with self.subTest(cache_miss=cache_miss):
+                self.f.cache.data.clear()
+                self.f.local.login_manager.reset_mock()
+                self.f.request.cookies = {"sid": "Guest"}
+                url = inspect.unwrap(auth.begin_google_sign_in)(redirect_to="/crm/deals/DEAL-001")
+                query = parse_qs(urlparse(url).query)
+                cookie_args = self.f.local.cookie_manager.set_cookie.call_args
+                self.assertEqual(cookie_args.kwargs, {
+                    "secure": True, "httponly": True, "samesite": "Lax", "max_age": 600,
+                })
+                self.f.request.cookies[auth.COOKIE] = cookie_args.args[1]
+                if cache_miss:
+                    self.f.cache.data.clear()
+                post, _ = self.callback(
+                    claims={**self.claims, "nonce": query["nonce"][0]}, state=query["state"][0],
+                )
+                post.assert_called_once()
+                verifier = post.call_args.kwargs["data"]["code_verifier"]
+                challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+                self.assertEqual(challenge, query["code_challenge"][0])
+                self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
+                self.assertEqual(self.f.local.response.location, "/crm/deals/DEAL-001")
+
+    def test_signed_cookie_binding_survives_session_cookie_change(self):
+        self.f.request.cookies["sid"] = "different-session"
+        self.callback()
+        self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
+
+    def test_redis_fallback_requires_matching_browser_binding(self):
+        for sid, allowed in (("browser-binding", True), ("wrong-browser", False), ("Guest", False)):
+            with self.subTest(sid=sid):
+                self.f.request.cookies = {"sid": sid}
+                pending = auth._load_oauth_pending("state", "secret")
+                self.assertIsNotNone(pending)
+                self.assertEqual(auth._binding_ok(pending, "state", "secret"), allowed)
+
+    def test_wrong_browser_is_rejected_even_with_redis_pending(self):
+        self.f.request.cookies = {"sid": "Guest", auth.COOKIE: "wrong-browser"}
+        post, _ = self.callback()
+        post.assert_not_called()
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=expired")
+
+    def test_expired_signed_cookie_is_rejected_without_redis(self):
+        self.f.cache.data.clear()
+        with patch.object(auth.time, "time", return_value=1_800_000_600):
+            post, _ = self.callback()
+        post.assert_not_called()
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=expired")
+
+    def test_malformed_signed_payload_is_rejected(self):
+        payload = auth._unpack_oauth_state(self.oauth_cookie, "secret")
+        for update in ({"expires_at": None}, {"expires_at": "1800000600"}, {"raw": []}, {"verifier": 1}, {"nonce": None}):
+            with self.subTest(update=update):
+                self.f.request.cookies[auth.COOKIE] = auth._pack_oauth_state({**payload, **update}, "secret")
+                self.assertIsNone(auth._pending_from_cookie("state", "secret"))
+
+    def test_signature_with_period_bytes_round_trips(self):
+        # Exercise actual HMAC output, including signatures containing the old
+        # delimiter, without relying on random token generation.
+        with_period = 0
+        for index in range(128):
+            payload = {"raw": f"binding-{index}"}
+            packed = auth._pack_oauth_state(payload, "secret")
+            raw = base64.urlsafe_b64decode(packed + "=" * (-len(packed) % 4))
+            with_period += b"." in raw[-32:]
+            self.assertEqual(auth._unpack_oauth_state(packed, "secret"), payload)
+        self.assertGreater(with_period, 0)
+
+    def test_tampered_or_malformed_cookie_is_rejected(self):
+        raw = base64.urlsafe_b64decode(self.oauth_cookie + "=" * (-len(self.oauth_cookie) % 4))
+        tampered = base64.urlsafe_b64encode(raw.replace(b"browser-binding", b"another-binding")).decode()
+        for cookie in (tampered, "not-base64!", "", auth._pack_oauth_state([], "secret")):
+            with self.subTest(cookie=cookie):
+                self.f.request.cookies[auth.COOKIE] = cookie
+                self.assertIsNone(auth._pending_from_cookie("state", "secret"))
+
+    def test_cookie_from_another_state_is_rejected(self):
+        self.assertIsNone(auth._pending_from_cookie("another-state", "secret"))
+
+    def test_repeated_starts_do_not_nest_previous_cookie(self):
+        self.f.request.cookies = {"sid": "Guest"}
+        for _ in range(12):
+            inspect.unwrap(auth.begin_google_sign_in)()
+            packed = self.f.local.cookie_manager.set_cookie.call_args.args[1]
+            self.assertLess(len(packed), 1000)
+            payload = auth._unpack_oauth_state(packed, "secret")
+            self.assertEqual(len(payload["raw"]), 43)
+            self.f.request.cookies[auth.COOKIE] = packed
+
     def test_sid_cookie_is_accepted_as_browser_binding(self):
         self.f.request.cookies = {
             auth.COOKIE: self.oauth_cookie,
@@ -138,7 +240,7 @@ class GoogleAuthTests(unittest.TestCase):
             userinfo_error=auth.requests.RequestException("network"),
         )
         self.f.local.login_manager.login_as.assert_not_called()
-        self.assertEqual(self.f.local.response.location, "/company-login?error=unverified")
+        self.assertEqual(self.f.local.response.location, "/company-login?error=unverified&redirect-to=%2Fcrm%2Fleads")
 
     def test_userinfo_fallback_when_id_token_verification_fails(self):
         self.callback(verify_error=ValueError("bad signature"))
@@ -146,7 +248,8 @@ class GoogleAuthTests(unittest.TestCase):
         self.assertEqual(self.f.local.response.location, "/crm/leads")
 
     def test_missing_id_token_can_still_sign_in_with_userinfo(self):
-        self.callback(token_response={"access_token": "access-token"})
+        _, verify = self.callback(token_response={"access_token": "access-token"})
+        verify.assert_not_called()
         self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
 
     def test_foreign_workspace_rejected(self):
@@ -181,6 +284,12 @@ class GoogleAuthTests(unittest.TestCase):
             "/company-login?error=config&redirect-to=%2Fcrm%2Fleads",
         )
 
+    def test_token_error_body_with_http_200_is_rejected(self):
+        _, verify = self.callback(token_response={"error": "invalid_grant"})
+        verify.assert_not_called()
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(self.f.local.response.location, "/company-login?error=expired&redirect-to=%2Fcrm%2Fleads")
+
     def test_strips_whitespace_from_google_credentials(self):
         with patch.dict(os.environ, {
             "GOOGLE_CLIENT_ID": "client\n",
@@ -192,29 +301,29 @@ class GoogleAuthTests(unittest.TestCase):
         self.user.enabled = 0
         self.callback()
         self.f.local.login_manager.login_as.assert_not_called()
-        self.assertEqual(self.f.local.response.location, "/company-login?error=disabled")
+        self.assertEqual(self.f.local.response.location, "/company-login?error=disabled&redirect-to=%2Fcrm%2Fleads")
 
     def test_unprovisioned_user_rejected(self):
         self.f.db.exists.return_value = False
         self.callback()
         self.f.local.login_manager.login_as.assert_not_called()
-        self.assertEqual(self.f.local.response.location, "/company-login?error=disabled")
+        self.assertEqual(self.f.local.response.location, "/company-login?error=disabled&redirect-to=%2Fcrm%2Fleads")
 
     def test_changed_google_subject_rejected(self):
         self.callback({**self.claims, "sub": "replacement-mailbox"})
         self.f.local.login_manager.login_as.assert_not_called()
-        self.assertEqual(self.f.local.response.location, "/company-login?error=identity")
+        self.assertEqual(self.f.local.response.location, "/company-login?error=identity&redirect-to=%2Fcrm%2Fleads")
 
     def test_cancelled_google_prompt_returns_to_sign_in(self):
         inspect.unwrap(auth.callback)(code=None, state="state", error="access_denied")
         self.f.local.login_manager.login_as.assert_not_called()
-        self.assertEqual(self.f.local.response.location, "/company-login?error=cancelled")
+        self.assertEqual(self.f.local.response.location, "/company-login?error=cancelled&redirect-to=%2Fcrm%2Fleads")
 
     def test_missing_crm_role_returns_to_sign_in(self):
         self.f.get_roles.return_value = ["All", "Guest"]
         self.callback()
         self.f.local.login_manager.login_as.assert_not_called()
-        self.assertEqual(self.f.local.response.location, "/company-login?error=role")
+        self.assertEqual(self.f.local.response.location, "/company-login?error=role&redirect-to=%2Fcrm%2Fleads")
 
     def test_start_sends_browser_to_html_interstitial(self):
         inspect.unwrap(auth.start)()

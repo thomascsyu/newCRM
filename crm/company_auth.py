@@ -8,6 +8,7 @@ import hmac
 import json
 import os
 import secrets
+import time
 from urllib.parse import urlencode
 
 import frappe
@@ -32,6 +33,7 @@ START_PAGE = "/company-oauth"
 HEALTH = "/api/method/crm.company_auth.health"
 COOKIE = "__Host-crm_oauth"
 OAUTH_DONE = "company_oauth_done:"
+OAUTH_STATE_TTL_SECONDS = 600
 # Shown on /company-login?error= after the Google account picker. Keys are the
 # only values accepted from the query string so a forged parameter cannot
 # inject copy. AuthenticationError on the callback used to render Frappe's
@@ -113,11 +115,19 @@ def _pack_oauth_state(payload, secret):
 def _unpack_oauth_state(value, secret):
     padded = value + "=" * (-len(value) % 4)
     raw = base64.urlsafe_b64decode(padded.encode())
-    body, signature = raw.rsplit(b".", 1)
+    # A binary SHA-256 signature can itself contain b".". Split at its fixed
+    # length, otherwise valid cookies randomly fail signature verification.
+    signature_size = hashlib.sha256().digest_size
+    if len(raw) <= signature_size + 1 or raw[-signature_size - 1:-signature_size] != b".":
+        raise ValueError("invalid oauth cookie")
+    body, signature = raw[:-signature_size - 1], raw[-signature_size:]
     expected = hmac.new(_oauth_signing_key(secret), body, hashlib.sha256).digest()
     if not hmac.compare_digest(signature, expected):
         raise ValueError("invalid oauth cookie")
-    return json.loads(body.decode())
+    payload = json.loads(body.decode())
+    if not isinstance(payload, dict):
+        raise ValueError("invalid oauth cookie")
+    return payload
 
 
 def _pending_from_cookie(state, secret):
@@ -126,16 +136,22 @@ def _pending_from_cookie(state, secret):
         return None
     try:
         payload = _unpack_oauth_state(packed, secret)
-    except (ValueError, json.JSONDecodeError, KeyError):
+    except ValueError:
         return None
-    if payload.get("state") != state or not payload.get("raw") or not payload.get("verifier"):
+    if any(not isinstance(payload.get(key), str) or not payload[key] for key in ("state", "raw", "nonce", "verifier")):
+        return None
+    # Browser Max-Age alone is not an expiry check for the Redis-free fallback.
+    expires_at = payload.get("expires_at")
+    if type(expires_at) is not int or expires_at <= time.time():
+        return None
+    if payload["state"] != state:
         return None
     raw = payload["raw"]
     return {
         "binding": hashlib.sha256(raw.encode()).hexdigest(),
         "nonce": payload.get("nonce") or "",
         "verifier": payload["verifier"],
-        "redirect_to": payload.get("redirect_to") or "/crm",
+        "redirect_to": safe_redirect_path(payload.get("redirect_to")) if isinstance(payload.get("redirect_to"), str) else "/crm",
     }
 
 
@@ -210,22 +226,27 @@ def _cookie_secret(key):
 
 
 def _binding_raw():
-    # Prefer a cookie the browser already stored on /company-login. Safari often
-    # drops a cookie that is first set on a 302 to accounts.google.com.
-    return _cookie_secret("sid") or _cookie_secret(COOKIE) or secrets.token_urlsafe(32)
+    # Keep an established session as a fallback binding. Never embed the previous
+    # signed cookie: repeated sign-in attempts would grow it past browser limits.
+    return _cookie_secret("sid") or secrets.token_urlsafe(32)
 
 
-def _binding_ok(pending):
+def _binding_ok(pending, state, secret):
     expected = (pending or {}).get("binding") or ""
     if not expected:
         return False
+    # The browser returns the signed envelope, not the raw value inside it.
+    # Verify its signature, state and expiry before trusting its binding.
+    cookie_pending = _pending_from_cookie(state, secret)
+    if cookie_pending and secrets.compare_digest(expected, cookie_pending["binding"]):
+        return True
     for raw in (_cookie_secret("sid"), _cookie_secret(COOKIE)):
         if raw and secrets.compare_digest(expected, hashlib.sha256(raw.encode()).hexdigest()):
             return True
     return False
 
 
-def _set_oauth_cookie(value, max_age=600):
+def _set_oauth_cookie(value, max_age=OAUTH_STATE_TTL_SECONDS):
     frappe.local.cookie_manager.set_cookie(COOKIE, value, secure=True, httponly=True, samesite="Lax", max_age=max_age)
 
 
@@ -244,9 +265,10 @@ def begin_google_sign_in(redirect_to: str | None = None):
         "binding": hashlib.sha256(raw.encode()).hexdigest(),
         "nonce": nonce, "verifier": verifier, "redirect_to": redirect_path,
     }
-    frappe.cache.set_value("company_oauth:" + state, pending, expires_in_sec=600)
+    frappe.cache.set_value("company_oauth:" + state, pending, expires_in_sec=OAUTH_STATE_TTL_SECONDS)
     _set_oauth_cookie(_pack_oauth_state({
         "raw": raw, "state": state, "nonce": nonce, "verifier": verifier, "redirect_to": redirect_path,
+        "expires_at": int(time.time()) + OAUTH_STATE_TTL_SECONDS,
     }, secret))
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
@@ -276,19 +298,27 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
         _fail_oauth("config")
         return
     if not state or len(state) > 100:
+        _log_oauth_failure("state", "missing_or_invalid_state")
         _fail_oauth("expired")
         return
     # Hold the lock through login so a second mobile callback waits, then
     # sees the completion marker instead of Frappe's 401 Session Expired page.
     with frappe.cache.lock("company_oauth_lock:" + state, timeout=10):
+        # A repeated callback can still carry the valid signed cookie. Check
+        # completion before loading it so Google's code is never exchanged twice.
+        if frappe.cache.get_value(OAUTH_DONE + state):
+            _redirect("/crm")
+            return
         pending = _load_oauth_pending(state, secret)
         if not pending:
-            if frappe.cache.get_value(OAUTH_DONE + state) or _signed_in():
+            if _signed_in():
                 _redirect("/crm")
                 return
+            _log_oauth_failure("state", "missing_or_invalid_pending")
             _fail_oauth("expired")
             return
-        if not _binding_ok(pending):
+        if not _binding_ok(pending, state, secret):
+            _log_oauth_failure("state", "browser_binding_mismatch")
             _fail_oauth("expired")
             return
         if error or not code:
@@ -351,7 +381,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
         cookies.to_delete = [key for key in cookies.to_delete if key not in cookies.cookies]
         frappe.local.flags.commit = True
         frappe.cache.delete_value("company_oauth:" + state)
-        frappe.cache.set_value(OAUTH_DONE + state, True, expires_in_sec=120)
+        frappe.cache.set_value(OAUTH_DONE + state, True, expires_in_sec=OAUTH_STATE_TTL_SECONDS)
         _set_oauth_cookie("", max_age=0)
         _redirect(pending.get("redirect_to") or "/crm")
 
