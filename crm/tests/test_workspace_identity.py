@@ -22,7 +22,7 @@ class WorkspaceIdentityTests(unittest.TestCase):
                 normalize_domain(domain)
 
     def test_requires_verified_managed_google_identity(self):
-        for update in ({"email_verified": False}, {"email_verified": "true"}, {"hd": ""}, {"hd": "other.test"}, {"nonce": "wrong"}, {"sub": ""}):
+        for update in ({"email_verified": False}, {"email_verified": "true"}, {"hd": ""}, {"hd": None}, {"hd": "other.test"}, {"nonce": "wrong"}, {"sub": ""}):
             with self.subTest(update=update), self.assertRaises(WorkspaceIdentityError):
                 validate_claims(self.claims(**update), "company.test", "nonce")
 

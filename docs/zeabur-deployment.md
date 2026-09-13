@@ -173,6 +173,8 @@ Use the application Email settings to configure an outgoing email account before
 | Redis OOM/noeviction errors | Inspect queued jobs and memory, then increase Redis data and service memory limits. Do not discard the queue. |
 | OAuth redirect_uri_mismatch | Match public HTTPS origin and the exact callback URI in the Google client. |
 | Session Expired after choosing a Google account | A failed or replayed Google callback used to render Frappe's 401 page. Sign-in now binds to the session cookie already set on `/company-login`, ignores a second callback, and returns to `/company-login` with the real reason. Sign in again from that page. |
+| Google sign-in could not be verified | Usually a bad or stale authorization code, or a token verification failure. Start again from `/company-login`. If it persists, confirm `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` have no trailing whitespace and match the Google Cloud OAuth client. |
+| Use your company Google Workspace account | The Google account is not a managed `@gabriel.hk` Workspace user. Sign in with the company account, not a personal Gmail address. |
 | Company user denied | Check provisioned/enabled User, System User type, CRM role, verified email and Workspace domain. |
 | Healthy page but no background work | Check worker/scheduler process status and `bench --site crm.internal doctor` in the service. |
 | Git build cannot find the repository | Give the Zeabur GitHub app access to newCRM and confirm branch main. |
