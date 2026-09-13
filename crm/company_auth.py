@@ -17,7 +17,7 @@ from frappe.rate_limiter import rate_limit
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import redirect
 
-from crm.security.workspace import company_email, normalize_domain, public_origin, validate_claims, WorkspaceIdentityError
+from crm.security.workspace import company_email, normalize_domain, public_origin, safe_redirect_path, validate_claims, WorkspaceIdentityError
 
 CALLBACK = "/api/method/crm.company_auth.callback"
 START = "/api/method/crm.company_auth.start"
@@ -54,18 +54,21 @@ def _require_sign_in(message="Sign in with your company Google Workspace account
     # before_request runs outside the website renderer, which is the part of
     # Frappe that handles frappe.Redirect. Return a real HTTP redirect here.
     if frappe.request.method == "GET" and not frappe.request.path.startswith("/api/"):
-        raise HTTPException(response=redirect("/company-login", code=302))
+        return_path = frappe.request.full_path.rstrip("?")
+        location = "/company-login?" + urlencode({"redirect-to": return_path})
+        raise HTTPException(response=redirect(location, code=302))
     _deny(message)
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 @rate_limit(limit=20, seconds=60)
-def start():
+def start(redirect_to: str | None = None):
     domain, origin, client_id, _ = configuration()
+    redirect_path = safe_redirect_path(redirect_to or frappe.form_dict.get("redirect-to"))
     state, binding, nonce, verifier = [secrets.token_urlsafe(32) for _ in range(4)]
     frappe.cache.set_value("company_oauth:" + state, {
         "binding": hashlib.sha256(binding.encode()).hexdigest(),
-        "nonce": nonce, "verifier": verifier,
+        "nonce": nonce, "verifier": verifier, "redirect_to": redirect_path,
     }, expires_in_sec=600)
     frappe.local.cookie_manager.set_cookie(COOKIE, binding, secure=True, httponly=True, samesite="Lax", max_age=600)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
@@ -125,7 +128,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
     cookies = frappe.local.cookie_manager
     cookies.to_delete = [key for key in cookies.to_delete if key not in cookies.cookies]
     frappe.local.flags.commit = True
-    _redirect("/crm")
+    _redirect(pending.get("redirect_to") or "/crm")
 
 
 def before_login(login_manager=None):

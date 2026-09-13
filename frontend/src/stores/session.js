@@ -1,22 +1,25 @@
 import { defineStore } from 'pinia'
 import { createResource } from 'frappe-ui'
 import { ref, computed } from 'vue'
+import {
+  currentRedirectPath,
+  verifiedSessionUser,
+} from '@/utils/sessionUser'
 
 export const sessionStore = defineStore('crm-session', () => {
-  function sessionUser() {
-    let cookies = new URLSearchParams(document.cookie.split('; ').join('&'))
-    let _sessionUser = cookies.get('user_id')
-    if (_sessionUser === 'Guest') {
-      _sessionUser = null
-    }
-    return _sessionUser
+  function resolveUser() {
+    return verifiedSessionUser(
+      document.cookie,
+      window.company_google_login,
+    )
   }
 
-  let user = ref(sessionUser())
+  let user = ref(resolveUser())
   const isLoggedIn = computed(() => !!user.value)
 
-  function login() {
-    window.location.href = '/api/method/crm.company_auth.start'
+  function login(redirectTo = currentRedirectPath()) {
+    const params = new URLSearchParams({ redirect_to: redirectTo })
+    window.location.href = `/api/method/crm.company_auth.start?${params}`
   }
 
   const logout = createResource({

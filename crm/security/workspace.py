@@ -44,3 +44,15 @@ def public_origin(value: str) -> str:
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ("", "/"):
         raise WorkspaceIdentityError("CRM_PUBLIC_URL must be an HTTPS origin without a path.")
     return value.rstrip("/")
+
+
+def safe_redirect_path(value: str | None, default: str = "/crm") -> str:
+    """Return a same-origin CRM path; reject open redirects."""
+    path = (value or "").strip()
+    if not path:
+        return default
+    if not path.startswith("/") or path.startswith("//") or "://" in path:
+        return default
+    if path == "/crm" or path.startswith("/crm/"):
+        return path
+    return default

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { createResource } from 'frappe-ui'
 import { reactive } from 'vue'
+import { currentRedirectPath } from '@/utils/sessionUser'
 
 export const organizationsStore = defineStore('crm-organizations', () => {
   let organizationsByName = reactive({})
@@ -22,7 +23,8 @@ export const organizationsStore = defineStore('crm-organizations', () => {
       )
 
       if (isAuthError) {
-        window.location.href = '/login?redirect-to=/crm'
+        const redirectTo = encodeURIComponent(currentRedirectPath())
+        window.location.href = `/login?redirect-to=${redirectTo}`
       }
     },
   })
