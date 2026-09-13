@@ -167,6 +167,7 @@ Use the application Email settings to configure an outgoing email account before
 |---|---|
 | Missing Google environment variable at startup | Set both OAuth variables on CRM, then restart it. The pod stays running; only sign-in is blocked. |
 | BackOff / CrashLoopBackOff on the CRM pod | The public port must answer during first-site creation. Confirm the image uses this repository's entrypoint (no start-command override), MariaDB/Redis are healthy, and `DB_HOST` / `REDIS_URL` are the private hostnames — not `${CONTAINER_HOSTNAME}` on CRM itself. |
+| `FileNotFoundError: /home/frappe/logs/database.log` during bootstrap | Deploy the bootstrap working-directory fix. Direct Frappe calls must run from the Bench `sites` directory so both bench and site logs resolve correctly. Preserve the existing volumes; creating another site or changing database credentials does not fix this error. |
 | MariaDB access denied | Match the stored bootstrap password on first creation; check private host/port and root host access. Changing an environment variable does not rotate an existing MariaDB password. |
 | Redis NOAUTH, invalid password or connection refused | Match config-file password and CRM URL, enable env substitution, and use the private hostname. |
 | Redis OOM/noeviction errors | Inspect queued jobs and memory, then increase Redis data and service memory limits. Do not discard the queue. |
