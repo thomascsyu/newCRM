@@ -67,11 +67,18 @@ def get_deal_activities(name: str):
 	docinfo.versions.reverse()
 
 	for version in docinfo.versions:
-		data = json.loads(version.data)
-		if not data.get("changed"):
+		version_data = json.loads(version.data)
+		if not version_data.get("changed"):
 			continue
 
-		if change := data.get("changed")[0]:
+		# A single save can change several fields at once -- every one of them
+		# needs its own timeline entry, not just the first in the list (which
+		# also silently dropped every other field whenever it happened to be
+		# filtered out, e.g. hidden or in avoid_fields).
+		for change in version_data.get("changed") or []:
+			if not change:
+				continue
+
 			field = deal_fields.get(change[0], None)
 
 			if not field or change[0] in avoid_fields or (not change[1] and not change[2]):
@@ -81,7 +88,7 @@ def get_deal_activities(name: str):
 			field_option = field.get("options") or None
 
 			activity_type = "changed"
-			data = {
+			change_data = {
 				"field": change[0],
 				"field_label": field_label,
 				"old_value": change[1],
@@ -90,34 +97,34 @@ def get_deal_activities(name: str):
 
 			if not change[1] and change[2]:
 				activity_type = "added"
-				data = {
+				change_data = {
 					"field": change[0],
 					"field_label": field_label,
 					"value": change[2],
 				}
 			elif change[1] and not change[2]:
 				activity_type = "removed"
-				data = {
+				change_data = {
 					"field": change[0],
 					"field_label": field_label,
 					"value": change[1],
 				}
 
-			if data.get("value") and field_option and is_translatable(field_option):
-				data["value"] = _(data["value"])
+			if change_data.get("value") and field_option and is_translatable(field_option):
+				change_data["value"] = _(change_data["value"])
 
-				if data.get("old_value"):
-					data["old_value"] = _(data["old_value"])
+				if change_data.get("old_value"):
+					change_data["old_value"] = _(change_data["old_value"])
 
-		activity = {
-			"activity_type": activity_type,
-			"creation": version.creation,
-			"owner": version.owner,
-			"data": data,
-			"is_lead": False,
-			"options": field_option,
-		}
-		activities.append(activity)
+			activity = {
+				"activity_type": activity_type,
+				"creation": version.creation,
+				"owner": version.owner,
+				"data": change_data,
+				"is_lead": False,
+				"options": field_option,
+			}
+			activities.append(activity)
 
 	for comment in docinfo.comments:
 		activity = {
@@ -205,11 +212,18 @@ def get_lead_activities(name: str):
 	docinfo.versions.reverse()
 
 	for version in docinfo.versions:
-		data = json.loads(version.data)
-		if not data.get("changed"):
+		version_data = json.loads(version.data)
+		if not version_data.get("changed"):
 			continue
 
-		if change := data.get("changed")[0]:
+		# A single save can change several fields at once -- every one of them
+		# needs its own timeline entry, not just the first in the list (which
+		# also silently dropped every other field whenever it happened to be
+		# filtered out, e.g. hidden or in avoid_fields).
+		for change in version_data.get("changed") or []:
+			if not change:
+				continue
+
 			field = lead_fields.get(change[0], None)
 
 			if not field or change[0] in avoid_fields or (not change[1] and not change[2]):
@@ -219,7 +233,7 @@ def get_lead_activities(name: str):
 			field_option = field.get("options") or None
 
 			activity_type = "changed"
-			data = {
+			change_data = {
 				"field": change[0],
 				"field_label": field_label,
 				"old_value": change[1],
@@ -228,34 +242,34 @@ def get_lead_activities(name: str):
 
 			if not change[1] and change[2]:
 				activity_type = "added"
-				data = {
+				change_data = {
 					"field": change[0],
 					"field_label": field_label,
 					"value": change[2],
 				}
 			elif change[1] and not change[2]:
 				activity_type = "removed"
-				data = {
+				change_data = {
 					"field": change[0],
 					"field_label": field_label,
 					"value": change[1],
 				}
 
-			if data.get("value") and field_option and is_translatable(field_option):
-				data["value"] = _(data["value"])
+			if change_data.get("value") and field_option and is_translatable(field_option):
+				change_data["value"] = _(change_data["value"])
 
-				if data.get("old_value"):
-					data["old_value"] = _(data["old_value"])
+				if change_data.get("old_value"):
+					change_data["old_value"] = _(change_data["old_value"])
 
-		activity = {
-			"activity_type": activity_type,
-			"creation": version.creation,
-			"owner": version.owner,
-			"data": data,
-			"is_lead": True,
-			"options": field_option,
-		}
-		activities.append(activity)
+			activity = {
+				"activity_type": activity_type,
+				"creation": version.creation,
+				"owner": version.owner,
+				"data": change_data,
+				"is_lead": True,
+				"options": field_option,
+			}
+			activities.append(activity)
 
 	for comment in docinfo.comments:
 		activity = {

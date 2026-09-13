@@ -724,7 +724,7 @@ def get_sales_trend(from_date: str | None = None, to_date: str | None = None, us
 	)
 
 	if user:
-		leads_query = leads_query.where_owner_condition(Lead.lead_owner, user)
+		leads_query = leads_query.where(_owner_condition(Lead.lead_owner, user))
 
 	leads_query = leads_query.groupby(Date(Lead.creation))
 
@@ -743,7 +743,7 @@ def get_sales_trend(from_date: str | None = None, to_date: str | None = None, us
 	)
 
 	if user:
-		deals_query = deals_query.where_owner_condition(Deal.deal_owner, user)
+		deals_query = deals_query.where(_owner_condition(Deal.deal_owner, user))
 
 	deals_query = deals_query.groupby(Date(Deal.creation))
 
@@ -811,49 +811,68 @@ def get_forecasted_revenue(from_date: str | None = None, to_date: str | None = N
 	CRMDeal = DocType("CRM Deal")
 	CRMDealStatus = DocType("CRM Deal Status")
 
-	# Calculate the date 12 months ago
-	twelve_months_ago = frappe.utils.add_months(frappe.utils.nowdate(), -12)
+	if not from_date or not to_date:
+		from_date = frappe.utils.add_months(frappe.utils.nowdate(), -12)
+		to_date = frappe.utils.nowdate()
 
 	forecasted_value = (
-		Case()
-		.when(CRMDealStatus.type == "Lost", CRMDeal.expected_deal_value * IfNull(CRMDeal.exchange_rate, 1))
-		.else_(
-			CRMDeal.expected_deal_value
-			* IfNull(CRMDeal.probability, 0)
-			/ 100
-			* IfNull(CRMDeal.exchange_rate, 1)
-		)
+		CRMDeal.expected_deal_value * IfNull(CRMDeal.probability, 0) / 100 * IfNull(CRMDeal.exchange_rate, 1)
 	)
 
-	actual_value = (
-		Case()
-		.when(CRMDealStatus.type == "Won", CRMDeal.deal_value * IfNull(CRMDeal.exchange_rate, 1))
-		.else_(0)
-	)
-
-	query = (
+	# Forecast is a projection of deals still in play, bucketed by when they're
+	# expected to close; a Lost deal has no chance of landing and must not
+	# inflate it (it also can't be "actual" revenue, so it's simply dropped).
+	forecast_query = (
 		frappe.qb.from_(CRMDeal)
 		.join(CRMDealStatus)
 		.on(CRMDeal.status == CRMDealStatus.name)
 		.select(
 			DateFormat(CRMDeal.expected_closure_date, "%Y-%m").as_("month"),
 			Sum(forecasted_value).as_("forecasted"),
+		)
+		.where(
+			(CRMDealStatus.type.notin(["Won", "Lost"]))
+			& (CRMDeal.expected_closure_date >= from_date)
+			& (CRMDeal.expected_closure_date <= to_date)
+		)
+		.groupby(DateFormat(CRMDeal.expected_closure_date, "%Y-%m"))
+	)
+
+	actual_value = CRMDeal.deal_value * IfNull(CRMDeal.exchange_rate, 1)
+
+	# Actual revenue is realized on the deal's real closure date, not whatever
+	# date it was originally expected to close on.
+	actual_query = (
+		frappe.qb.from_(CRMDeal)
+		.join(CRMDealStatus)
+		.on(CRMDeal.status == CRMDealStatus.name)
+		.select(
+			DateFormat(CRMDeal.closed_date, "%Y-%m").as_("month"),
 			Sum(actual_value).as_("actual"),
 		)
-		.where(CRMDeal.expected_closure_date >= twelve_months_ago)
-		.groupby(DateFormat(CRMDeal.expected_closure_date, "%Y-%m"))
-		.orderby(DateFormat(CRMDeal.expected_closure_date, "%Y-%m"))
+		.where(
+			(CRMDealStatus.type == "Won")
+			& (CRMDeal.closed_date >= from_date)
+			& (CRMDeal.closed_date <= to_date)
+		)
+		.groupby(DateFormat(CRMDeal.closed_date, "%Y-%m"))
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMDeal.deal_owner, user)
+		forecast_query = forecast_query.where(_owner_condition(CRMDeal.deal_owner, user))
+		actual_query = actual_query.where(_owner_condition(CRMDeal.deal_owner, user))
 
-	result = query.run(as_dict=True)
+	forecasted_by_month = {row["month"]: row["forecasted"] for row in forecast_query.run(as_dict=True)}
+	actual_by_month = {row["month"]: row["actual"] for row in actual_query.run(as_dict=True)}
 
-	for row in result:
-		row["month"] = frappe.utils.get_datetime(row["month"]).strftime("%Y-%m-01")
-		row["forecasted"] = row["forecasted"] or ""
-		row["actual"] = row["actual"] or ""
+	result = [
+		{
+			"month": frappe.utils.get_datetime(month).strftime("%Y-%m-01"),
+			"forecasted": forecasted_by_month.get(month) or "",
+			"actual": actual_by_month.get(month) or "",
+		}
+		for month in sorted(set(forecasted_by_month) | set(actual_by_month))
+	]
 
 	return {
 		"data": result or [],
@@ -910,7 +929,7 @@ def get_funnel_conversion(from_date: str | None = None, to_date: str | None = No
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMLead.lead_owner, user)
+		query = query.where(_owner_condition(CRMLead.lead_owner, user))
 
 	total_leads = query.run(as_dict=True)
 	total_leads_count = total_leads[0].count if total_leads else 0
@@ -974,7 +993,7 @@ def get_deals_by_stage_axis(
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMDeal.deal_owner, user)
+		query = query.where(_owner_condition(CRMDeal.deal_owner, user))
 
 	result = query.run(as_dict=True)
 
@@ -1023,7 +1042,7 @@ def get_deals_by_stage_donut(
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMDeal.deal_owner, user)
+		query = query.where(_owner_condition(CRMDeal.deal_owner, user))
 
 	result = query.run(as_dict=True)
 
@@ -1065,7 +1084,7 @@ def get_lost_deal_reasons(from_date: str | None = None, to_date: str | None = No
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMDeal.deal_owner, user)
+		query = query.where(_owner_condition(CRMDeal.deal_owner, user))
 
 	result = query.run(as_dict=True)
 
@@ -1112,7 +1131,7 @@ def get_leads_by_source(from_date: str | None = None, to_date: str | None = None
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMLead.lead_owner, user)
+		query = query.where(_owner_condition(CRMLead.lead_owner, user))
 
 	result = query.run(as_dict=True)
 
@@ -1150,7 +1169,7 @@ def get_deals_by_source(from_date: str | None = None, to_date: str | None = None
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMDeal.deal_owner, user)
+		query = query.where(_owner_condition(CRMDeal.deal_owner, user))
 
 	result = query.run(as_dict=True)
 
@@ -1195,7 +1214,7 @@ def get_deals_by_territory(from_date: str | None = None, to_date: str | None = N
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMDeal.deal_owner, user)
+		query = query.where(_owner_condition(CRMDeal.deal_owner, user))
 
 	result = query.run(as_dict=True)
 
@@ -1258,7 +1277,7 @@ def get_deals_by_salesperson(
 	)
 
 	if user:
-		query = query.where_owner_condition(CRMDeal.deal_owner, user)
+		query = query.where(_owner_condition(CRMDeal.deal_owner, user))
 
 	result = query.run(as_dict=True)
 
