@@ -3,6 +3,7 @@ import { call } from 'frappe-ui'
 import { usersStore } from '@/stores/users'
 import { sessionStore } from '@/stores/session'
 import { viewsStore } from '@/stores/views'
+import { currentRedirectPath } from '@/utils/sessionUser'
 
 export const PERSONA_DONE_KEY = 'crm_persona_captured'
 
@@ -212,7 +213,10 @@ router.beforeEach(async (to, from, next) => {
       next({ name: route_name, params: { viewType: type } })
     }
   } else if (!isLoggedIn) {
-    window.location.href = '/login?redirect-to=/crm'
+    const redirectTo = encodeURIComponent(
+      '/crm' + to.fullPath + (to.hash || ''),
+    )
+    window.location.href = `/login?redirect-to=${redirectTo}`
   } else if (to.matched.length === 0) {
     next({ name: 'Invalid Page' })
   } else if (['Deal', 'Lead'].includes(to.name) && !to.hash) {

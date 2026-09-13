@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { createResource } from 'frappe-ui'
 import { sessionStore } from './session'
 import { computed, reactive } from 'vue'
+import { currentRedirectPath } from '@/utils/sessionUser'
 
 export const usersStore = defineStore('crm-users', () => {
   const session = sessionStore()
@@ -30,7 +31,8 @@ export const usersStore = defineStore('crm-users', () => {
     },
     onError(error) {
       if (error && error.exc_type === 'AuthenticationError') {
-        window.location.href = '/login?redirect-to=/crm'
+        const redirectTo = encodeURIComponent(currentRedirectPath())
+        window.location.href = `/login?redirect-to=${redirectTo}`
       }
     },
     onSuccess() {

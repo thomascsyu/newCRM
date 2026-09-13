@@ -37,6 +37,7 @@ def get_boot():
 		{
 			"frappe_version": frappe.__version__,
 			"default_route": get_default_route(),
+			"company_google_login": frappe.session.data.get("company_google_login"),
 			"site_name": frappe.local.site,
 			"socketio_port": frappe.conf.socketio_port,
 			"read_only_mode": frappe.flags.read_only,

@@ -17,7 +17,7 @@ from frappe.rate_limiter import rate_limit
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import redirect
 
-from crm.security.workspace import company_email, normalize_domain, public_origin, validate_claims, WorkspaceIdentityError
+from crm.security.workspace import company_email, normalize_domain, public_origin, safe_redirect_path, validate_claims, WorkspaceIdentityError
 
 CALLBACK = "/api/method/crm.company_auth.callback"
 
@@ -86,7 +86,9 @@ def _require_sign_in(message="Sign in with your company Google Workspace account
     # before_request runs outside the website renderer, which is the part of
     # Frappe that handles frappe.Redirect. Return a real HTTP redirect here.
     if frappe.request.method == "GET" and not frappe.request.path.startswith("/api/"):
-        raise HTTPException(response=redirect("/company-login", code=302))
+        return_path = frappe.request.full_path.rstrip("?")
+        location = "/company-login?" + urlencode({"redirect-to": return_path})
+        raise HTTPException(response=redirect(location, code=302))
     _deny(message)
 
 
@@ -120,18 +122,19 @@ def _set_oauth_cookie(value, max_age=600):
 
 
 @rate_limit(limit=20, seconds=60)
-def begin_google_sign_in():
+def begin_google_sign_in(redirect_to: str | None = None):
     """Create PKCE state and return the Google authorization URL.
 
     Called from the /company-oauth HTML page so Set-Cookie happens on a 200
     document response, not on a bounce redirect to Google.
     """
     domain, origin, client_id, _ = configuration()
+    redirect_path = safe_redirect_path(redirect_to or frappe.form_dict.get("redirect-to"))
     state, nonce, verifier = [secrets.token_urlsafe(32) for _ in range(3)]
     raw = _binding_raw()
     frappe.cache.set_value("company_oauth:" + state, {
         "binding": hashlib.sha256(raw.encode()).hexdigest(),
-        "nonce": nonce, "verifier": verifier,
+        "nonce": nonce, "verifier": verifier, "redirect_to": redirect_path,
     }, expires_in_sec=600)
     _set_oauth_cookie(raw)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
@@ -145,10 +148,12 @@ def begin_google_sign_in():
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 @rate_limit(limit=20, seconds=60)
-def start():
+def start(redirect_to: str | None = None):
     # Do not Set-Cookie on this 302: iOS Safari drops cookies first seen on a
     # bounce to a third party. The HTML start page stores the binding instead.
-    _redirect(START_PAGE)
+    redirect_path = safe_redirect_path(redirect_to or frappe.form_dict.get("redirect-to"))
+    location = START_PAGE + "?" + urlencode({"redirect-to": redirect_path})
+    _redirect(location)
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
@@ -222,7 +227,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
         frappe.cache.delete_value("company_oauth:" + state)
         frappe.cache.set_value(OAUTH_DONE + state, True, expires_in_sec=120)
         _set_oauth_cookie("", max_age=0)
-        _redirect("/crm")
+        _redirect(pending.get("redirect_to") or "/crm")
 
 
 def before_login(login_manager=None):

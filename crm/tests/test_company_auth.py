@@ -47,7 +47,7 @@ class GoogleAuthTests(unittest.TestCase):
         self.addCleanup(self.patch.stop)
         self.f.db.exists.return_value = True
         self.f.db.get_value.return_value = 1
-        self.f.cache.set_value("company_oauth:state", {"binding": hashlib.sha256(b"browser-binding").hexdigest(), "nonce": "nonce", "verifier": "verifier"})
+        self.f.cache.set_value("company_oauth:state", {"binding": hashlib.sha256(b"browser-binding").hexdigest(), "nonce": "nonce", "verifier": "verifier", "redirect_to": "/crm/leads"})
         self.claims = {"email": "rep@company.test", "email_verified": True, "hd": "company.test", "nonce": "nonce", "sub": "subject"}
 
     def callback(self, claims=None, verify_error=None):
@@ -62,7 +62,7 @@ class GoogleAuthTests(unittest.TestCase):
     def test_valid_login_uses_verified_email(self):
         self.callback()
         self.f.local.login_manager.login_as.assert_called_once_with("rep@company.test")
-        self.assertEqual(self.f.local.response.location, "/crm")
+        self.assertEqual(self.f.local.response.location, "/crm/leads")
         self.assertTrue(self.f.local.flags.commit)
 
     def test_expired_cookie_cannot_erase_new_session(self):
@@ -136,8 +136,14 @@ class GoogleAuthTests(unittest.TestCase):
 
     def test_start_sends_browser_to_html_interstitial(self):
         inspect.unwrap(auth.start)()
-        self.assertEqual(self.f.local.response.location, auth.START_PAGE)
+        self.assertEqual(self.f.local.response.location, auth.START_PAGE + "?redirect-to=%2Fcrm")
         self.f.local.cookie_manager.set_cookie.assert_not_called()
+
+    def test_begin_sign_in_stores_redirect_target(self):
+        self.f.cache.data.clear()
+        inspect.unwrap(auth.begin_google_sign_in)(redirect_to="/crm/deals/DEAL-001")
+        stored = next(value for key, value in self.f.cache.data.items() if key.startswith("company_oauth:"))
+        self.assertEqual(stored["redirect_to"], "/crm/deals/DEAL-001")
 
     def test_authorization_and_token_use_the_same_callback_uri(self):
         expected = "https://crm.company.test/api/method/crm.company_auth.callback"
@@ -183,26 +189,29 @@ class GoogleAuthTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             auth.before_request()
 
-    def assert_login_redirect(self):
+    def assert_login_redirect(self, location="/company-login"):
         with self.assertRaises(HTTPException) as raised:
             auth.before_request()
         response = raised.exception.get_response()
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/company-login")
+        self.assertEqual(response.headers["Location"], location)
 
     def test_guest_page_has_real_http_redirect(self):
         self.f.request.path = "/crm"
-        self.assert_login_redirect()
+        self.f.request.full_path = "/crm"
+        self.assert_login_redirect("/company-login?redirect-to=%2Fcrm")
 
     def test_old_session_page_redirects_to_sign_in(self):
         self.f.request.path = "/crm/leads"
+        self.f.request.full_path = "/crm/leads"
         self.f.session.user = "rep@company.test"
-        self.assert_login_redirect()
+        self.assert_login_redirect("/company-login?redirect-to=%2Fcrm%2Fleads")
 
     def test_non_company_session_page_redirects_to_sign_in(self):
         self.f.request.path = "/crm"
+        self.f.request.full_path = "/crm"
         self.f.session.user = "Administrator"
-        self.assert_login_redirect()
+        self.assert_login_redirect("/company-login?redirect-to=%2Fcrm")
 
     def test_guest_api_and_post_still_rejected(self):
         for path, method in [("/api/resource/CRM Lead", "GET"), ("/crm", "POST")]:

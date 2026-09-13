@@ -1,6 +1,6 @@
 """No database or network needed: python -m unittest crm.tests.test_workspace_identity."""
 import unittest
-from crm.security.workspace import WorkspaceIdentityError, company_email, normalize_domain, public_origin, validate_claims
+from crm.security.workspace import WorkspaceIdentityError, company_email, normalize_domain, public_origin, safe_redirect_path, validate_claims
 
 
 class WorkspaceIdentityTests(unittest.TestCase):
@@ -34,6 +34,13 @@ class WorkspaceIdentityTests(unittest.TestCase):
         for origin in ("http://crm.company.test", "//crm.company.test", "https://user:pass@crm.company.test", "https://crm.company.test/path", "https://crm.company.test?redirect=evil"):
             with self.subTest(origin=origin), self.assertRaises(WorkspaceIdentityError):
                 public_origin(origin)
+
+    def test_safe_redirect_path_allows_crm_paths_only(self):
+        self.assertEqual(safe_redirect_path("/crm/leads/LEAD-001"), "/crm/leads/LEAD-001")
+        self.assertEqual(safe_redirect_path(None), "/crm")
+        for path in ("https://evil.test", "//evil.test", "/admin", "/company-login", "crm/leads"):
+            with self.subTest(path=path):
+                self.assertEqual(safe_redirect_path(path), "/crm")
 
 
 if __name__ == '__main__':

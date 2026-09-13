@@ -11,7 +11,9 @@ def get_context(context):
     context.no_breadcrumbs = 1
     context.title = "Sign in"
     try:
-        context.google_url = begin_google_sign_in()
+        context.google_url = begin_google_sign_in(
+            redirect_to=frappe.form_dict.get("redirect-to"),
+        )
     except frappe.AuthenticationError:
         frappe.local.flags.redirect_location = oauth_login_path("config")
         raise frappe.Redirect
