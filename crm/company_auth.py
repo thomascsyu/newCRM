@@ -20,6 +20,11 @@ from werkzeug.utils import redirect
 from crm.security.workspace import company_email, normalize_domain, public_origin, validate_claims, WorkspaceIdentityError
 
 CALLBACK = "/api/method/crm.company_auth.callback"
+
+
+def oauth_redirect_uri(origin):
+    """Authorization request and token exchange must send this exact URI."""
+    return origin + CALLBACK
 START = "/api/method/crm.company_auth.start"
 START_PAGE = "/company-oauth"
 HEALTH = "/api/method/crm.company_auth.health"
@@ -131,7 +136,7 @@ def begin_google_sign_in():
     _set_oauth_cookie(raw)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
-        "client_id": client_id, "redirect_uri": origin + CALLBACK,
+        "client_id": client_id, "redirect_uri": oauth_redirect_uri(origin),
         "response_type": "code", "scope": "openid email profile", "state": state,
         "nonce": nonce, "hd": domain, "prompt": "select_account",
         "code_challenge": challenge, "code_challenge_method": "S256",
@@ -177,7 +182,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
         try:
             response = requests.post("https://oauth2.googleapis.com/token", data={
                 "code": code, "client_id": client_id, "client_secret": secret,
-                "redirect_uri": origin + CALLBACK, "grant_type": "authorization_code",
+                "redirect_uri": oauth_redirect_uri(origin), "grant_type": "authorization_code",
                 "code_verifier": pending["verifier"],
             }, timeout=15)
             response.raise_for_status()

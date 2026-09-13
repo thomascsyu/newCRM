@@ -6,6 +6,7 @@ import unittest
 from contextlib import nullcontext
 from types import SimpleNamespace as NS
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlparse
 from werkzeug.exceptions import HTTPException
 
 from crm import company_auth as auth
@@ -55,6 +56,7 @@ class GoogleAuthTests(unittest.TestCase):
         with patch.object(auth.requests, "post", return_value=response) as post, patch.object(auth.id_token, "verify_oauth2_token", return_value=claims or self.claims, side_effect=verify_error) as verify:
             inspect.unwrap(auth.callback)(code="code", state="state")
             self.assertEqual(post.call_args.kwargs['data']['code_verifier'], 'verifier')
+            self.assertEqual(post.call_args.kwargs['data']['redirect_uri'], auth.oauth_redirect_uri("https://crm.company.test"))
             self.assertEqual(verify.call_args.kwargs['audience'], 'client')
 
     def test_valid_login_uses_verified_email(self):
@@ -136,6 +138,14 @@ class GoogleAuthTests(unittest.TestCase):
         inspect.unwrap(auth.start)()
         self.assertEqual(self.f.local.response.location, auth.START_PAGE)
         self.f.local.cookie_manager.set_cookie.assert_not_called()
+
+    def test_authorization_and_token_use_the_same_callback_uri(self):
+        expected = "https://crm.company.test/api/method/crm.company_auth.callback"
+        self.assertEqual(auth.CALLBACK, "/api/method/crm.company_auth.callback")
+        self.assertEqual(auth.oauth_redirect_uri("https://crm.company.test"), expected)
+        self.f.cache.data.clear()
+        url = inspect.unwrap(auth.begin_google_sign_in)()
+        self.assertEqual(parse_qs(urlparse(url).query)["redirect_uri"], [expected])
 
     def test_begin_sign_in_reuses_existing_session_cookie(self):
         self.f.cache.data.clear()
