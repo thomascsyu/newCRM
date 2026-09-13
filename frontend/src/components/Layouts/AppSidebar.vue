@@ -18,23 +18,28 @@
       <div class="flex h-full flex-col p-2">
         <UserDropdown :isCollapsed="isCollapsed" />
 
+        <div class="mx-1 my-2 h-px shrink-0 bg-outline-gray-1" />
+
         <!-- overflow-y-auto forces overflow-x to clip too, which would slice the
              active row's shadow. Widen the scroll box to the sidebar edges and
              pad the content back in so the shadow has room. -->
-        <div class="-mx-2 mt-2 flex flex-1 flex-col gap-1 overflow-y-auto px-2">
+        <div class="-mx-2 flex flex-1 flex-col gap-1 overflow-y-auto px-2">
           <SidebarItem
             id="notifications-btn"
             :label="__('Notifications')"
             :to="mobile ? { name: 'Notifications' } : undefined"
             :active="mobile && activeItem === 'Notifications'"
+            class="rounded-lg"
             @click="onNotificationsClick"
           >
             <template #prefix>
-              <span class="relative grid size-4 place-items-center">
+              <span
+                class="relative grid size-6 shrink-0 place-items-center rounded-md"
+              >
                 <NotificationsIcon class="size-4 text-ink-gray-7" />
                 <span
                   v-if="isCollapsed && unreadNotificationsCount"
-                  class="absolute -right-1 -top-1 size-1.5 rounded-full bg-surface-gray-9 ring-1 ring-[var(--surface-gray-1)]"
+                  class="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-surface-gray-9 ring-1 ring-[var(--surface-gray-1)]"
                 />
               </span>
             </template>
@@ -58,32 +63,39 @@
             <template #header="{ opened, hide, toggle }">
               <SidebarLabel
                 v-if="!hide"
-                divider
-                class="mb-1 mt-4 select-none"
-                :class="!isCollapsed && 'cursor-pointer'"
+                class="group mb-1 mt-4 flex select-none items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium uppercase tracking-wide text-ink-gray-5 transition-colors duration-150 ease-in-out hover:bg-surface-gray-2 hover:text-ink-gray-7"
+                :class="isCollapsed ? 'cursor-default' : 'cursor-pointer'"
                 @click="toggle()"
               >
-                <span class="flex items-center gap-1.5">
-                  <span
-                    class="lucide-chevron-right -ml-0.5 size-4 shrink-0 text-ink-gray-9 transition-transform duration-300 ease-in-out"
-                    :class="{ 'rotate-90': opened }"
-                    aria-hidden="true"
-                  />
-                  <span class="truncate">{{ __(section.name) }}</span>
-                </span>
+                <span
+                  class="lucide-chevron-right -ml-0.5 size-3.5 shrink-0 text-ink-gray-4 transition-transform duration-300 ease-in-out group-hover:text-ink-gray-6"
+                  :class="{ 'rotate-90': opened }"
+                  aria-hidden="true"
+                />
+                <span class="truncate">{{ __(section.name) }}</span>
               </SidebarLabel>
             </template>
-            <nav class="flex flex-col gap-1">
+            <nav class="flex flex-col gap-0.5">
               <SidebarItem
                 v-for="link in section.views"
                 :key="link.key"
                 :to="link.to"
                 :label="__(link.label)"
                 :active="activeItem === link.key"
+                class="rounded-lg"
                 @click="selectItem($event, link.key)"
               >
                 <template #prefix>
-                  <Icon :icon="link.icon" class="size-4 text-ink-gray-7" />
+                  <span
+                    class="grid size-6 shrink-0 place-items-center rounded-md transition-colors duration-150"
+                    :class="
+                      activeItem === link.key
+                        ? 'bg-surface-white text-ink-gray-9 shadow-sm'
+                        : 'text-ink-gray-7'
+                    "
+                  >
+                    <Icon :icon="link.icon" class="size-4" />
+                  </span>
                 </template>
                 <Tooltip
                   :text="__(link.label)"
@@ -91,7 +103,16 @@
                   :hoverDelay="1.5"
                   :disabled="isCollapsed"
                 >
-                  <span class="truncate text-sm">{{ __(link.label) }}</span>
+                  <span
+                    class="truncate text-sm"
+                    :class="
+                      activeItem === link.key
+                        ? 'font-medium text-ink-gray-9'
+                        : 'text-ink-gray-8'
+                    "
+                  >
+                    {{ __(link.label) }}
+                  </span>
                 </Tooltip>
               </SidebarItem>
             </nav>
@@ -105,34 +126,43 @@
               :isSidebarCollapsed="isCollapsed"
             />
           </div>
+          <div class="mx-1 mb-1 h-px shrink-0 bg-outline-gray-1" />
           <SidebarItem
             v-if="isManager() && isDemoDataCreated"
             :label="__('Clear Demo Data')"
-            class="!text-ink-red-6 hover:!bg-surface-red-2"
+            class="rounded-lg !text-ink-red-6 hover:!bg-surface-red-2"
             @click="() => clearDemoData()"
           >
             <template #prefix>
-              <BrushCleaningIcon class="size-4" />
+              <span class="grid size-6 shrink-0 place-items-center rounded-md">
+                <BrushCleaningIcon class="size-4" />
+              </span>
             </template>
           </SidebarItem>
           <SidebarItem
             v-if="isOnboardingStepsCompleted"
             :label="__('Help')"
+            class="rounded-lg"
             @click="toggleHelpModal"
           >
             <template #prefix>
-              <HelpIcon class="size-4 text-ink-gray-7" />
+              <span class="grid size-6 shrink-0 place-items-center rounded-md">
+                <HelpIcon class="size-4 text-ink-gray-7" />
+              </span>
             </template>
           </SidebarItem>
           <SidebarItem
             :label="isCollapsed ? __('Expand') : __('Collapse')"
+            class="rounded-lg"
             @click="isSidebarCollapsed = !isSidebarCollapsed"
           >
             <template #prefix>
-              <CollapseSidebar
-                class="size-4 text-ink-gray-7 duration-300 ease-in-out"
-                :class="{ '[transform:rotateY(180deg)]': isCollapsed }"
-              />
+              <span class="grid size-6 shrink-0 place-items-center rounded-md">
+                <CollapseSidebar
+                  class="size-4 text-ink-gray-7 duration-300 ease-in-out"
+                  :class="{ '[transform:rotateY(180deg)]': isCollapsed }"
+                />
+              </span>
             </template>
           </SidebarItem>
         </div>
