@@ -6,6 +6,7 @@ import unittest
 from contextlib import nullcontext
 from types import SimpleNamespace as NS
 from unittest.mock import Mock, patch
+from werkzeug.exceptions import HTTPException
 
 from crm import company_auth as auth
 
@@ -127,6 +128,47 @@ class GoogleAuthTests(unittest.TestCase):
     def test_old_session_cannot_access_crm(self):
         self.f.request.path = '/api/resource/CRM Lead'
         self.f.session.user = 'rep@company.test'
+        with self.assertRaises(PermissionError):
+            auth.before_request()
+
+    def assert_login_redirect(self):
+        with self.assertRaises(HTTPException) as raised:
+            auth.before_request()
+        response = raised.exception.get_response()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/company-login")
+
+    def test_guest_page_has_real_http_redirect(self):
+        self.f.request.path = "/crm"
+        self.assert_login_redirect()
+
+    def test_old_session_page_redirects_to_sign_in(self):
+        self.f.request.path = "/crm/leads"
+        self.f.session.user = "rep@company.test"
+        self.assert_login_redirect()
+
+    def test_non_company_session_page_redirects_to_sign_in(self):
+        self.f.request.path = "/crm"
+        self.f.session.user = "Administrator"
+        self.assert_login_redirect()
+
+    def test_guest_api_and_post_still_rejected(self):
+        for path, method in [("/api/resource/CRM Lead", "GET"), ("/crm", "POST")]:
+            with self.subTest(path=path, method=method):
+                self.f.request.path, self.f.request.method = path, method
+                with self.assertRaises(PermissionError):
+                    auth.before_request()
+
+    def test_sign_in_page_does_not_redirect_old_session(self):
+        self.f.request.path = "/company-login"
+        self.f.session.user = "rep@company.test"
+        auth.before_request()
+
+    def test_disabled_google_user_still_rejected(self):
+        self.f.request.path = "/crm"
+        self.f.session.user = "rep@company.test"
+        self.f.session.data.company_google_login = "rep@company.test"
+        self.f.db.get_value.return_value = 0
         with self.assertRaises(PermissionError):
             auth.before_request()
 
