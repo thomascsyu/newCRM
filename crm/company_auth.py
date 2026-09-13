@@ -37,12 +37,14 @@ OAUTH_DONE = "company_oauth_done:"
 OAUTH_ERRORS = {
     "expired": "Invalid or expired Google sign-in. Start again.",
     "cancelled": "Google sign-in was cancelled. Start again.",
-    "unverified": "Google sign-in could not be verified. Use your company account and try again.",
+    "unverified": "Google sign-in could not be verified. Start again.",
+    "workspace": "Use your company Google Workspace account and try again.",
     "disabled": "Your company account has not been enabled for CRM. Contact your administrator.",
     "role": "Your account has no CRM role. Contact your administrator.",
     "identity": "This Google identity does not match the provisioned CRM account.",
     "config": "Google sign-in is not configured. Contact your administrator.",
 }
+OAUTH_CLOCK_SKEW_SECONDS = 10
 # Frappe's own Web Form submission handler -- see crm.api.form / crm.www.crm_form,
 # which build published, login_required=0 Web Forms specifically for anonymous
 # prospect capture (marketing site embeds, webinar sign-ups).
@@ -53,8 +55,8 @@ def configuration():
     try:
         domain = normalize_domain(os.environ.get("COMPANY_EMAIL_DOMAIN") or frappe.conf.get("company_email_domain"))
         origin = public_origin(os.environ.get("CRM_PUBLIC_URL") or frappe.conf.get("host_name"))
-        client_id = os.environ.get("GOOGLE_CLIENT_ID") or frappe.conf.get("google_client_id")
-        secret = os.environ.get("GOOGLE_CLIENT_SECRET") or frappe.conf.get("google_client_secret")
+        client_id = (os.environ.get("GOOGLE_CLIENT_ID") or frappe.conf.get("google_client_id") or "").strip()
+        secret = (os.environ.get("GOOGLE_CLIENT_SECRET") or frappe.conf.get("google_client_secret") or "").strip()
         if not client_id or not secret:
             raise WorkspaceIdentityError("Google sign-in is not configured. Contact your administrator.")
         return domain, origin, client_id, secret
@@ -70,16 +72,30 @@ def _redirect(location):
     frappe.local.response.update(type="redirect", location=location)
 
 
-def oauth_login_path(code=None):
+def oauth_login_path(code=None, redirect_to=None):
+    params = {}
     if code in OAUTH_ERRORS:
-        return "/company-login?error=" + code
-    return "/company-login"
+        params["error"] = code
+    if redirect_to:
+        params["redirect-to"] = safe_redirect_path(redirect_to)
+    if not params:
+        return "/company-login"
+    return "/company-login?" + urlencode(params)
 
 
-def _fail_oauth(code):
+def _oauth_error_from_token_response(error_code):
+    if error_code == "invalid_grant":
+        return "expired"
+    if error_code in ("invalid_client", "unauthorized_client"):
+        return "config"
+    return "unverified"
+
+
+def _fail_oauth(code, pending=None):
     """Browser OAuth endpoints must not render Frappe's 401 Session Expired page."""
     _set_oauth_cookie("", max_age=0)
-    _redirect(oauth_login_path(code))
+    redirect_to = (pending or {}).get("redirect_to")
+    _redirect(oauth_login_path(code, redirect_to=redirect_to))
 
 
 def _require_sign_in(message="Sign in with your company Google Workspace account."):
@@ -182,7 +198,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
             return
         if error or not code:
             frappe.cache.delete_value("company_oauth:" + state)
-            _fail_oauth("cancelled")
+            _fail_oauth("cancelled", pending)
             return
         try:
             response = requests.post("https://oauth2.googleapis.com/token", data={
@@ -190,30 +206,43 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
                 "redirect_uri": oauth_redirect_uri(origin), "grant_type": "authorization_code",
                 "code_verifier": pending["verifier"],
             }, timeout=15)
-            response.raise_for_status()
-            token = response.json()["id_token"]
+            try:
+                body = response.json()
+            except ValueError:
+                body = {}
+            if not response.ok:
+                frappe.cache.delete_value("company_oauth:" + state)
+                _fail_oauth(_oauth_error_from_token_response(body.get("error")), pending)
+                return
+            token = body["id_token"]
             # google-auth verifies Google's signature, issuer, expiry and our audience.
-            claims = id_token.verify_oauth2_token(token, Request(), audience=client_id)
+            claims = id_token.verify_oauth2_token(
+                token, Request(), audience=client_id, clock_skew_in_seconds=OAUTH_CLOCK_SKEW_SECONDS,
+            )
             email = validate_claims(claims, domain, pending["nonce"])
+        except WorkspaceIdentityError:
+            frappe.cache.delete_value("company_oauth:" + state)
+            _fail_oauth("workspace", pending)
+            return
         except (requests.RequestException, GoogleAuthError, ValueError, KeyError):
             frappe.cache.delete_value("company_oauth:" + state)
             # Do not expose authorization codes, tokens or secrets in errors/logs.
-            _fail_oauth("unverified")
+            _fail_oauth("unverified", pending)
             return
         user = frappe.get_doc("User", email) if frappe.db.exists("User", email) else None
         if not user or not user.enabled or user.user_type != "System User":
             frappe.cache.delete_value("company_oauth:" + state)
-            _fail_oauth("disabled")
+            _fail_oauth("disabled", pending)
             return
         if not set(frappe.get_roles(email)).intersection({"System Manager", "Sales Manager", "Sales User"}):
             frappe.cache.delete_value("company_oauth:" + state)
-            _fail_oauth("role")
+            _fail_oauth("role", pending)
             return
         # Bind an existing provisioned user to a stable Google subject on first login.
         # A subsequently recreated Workspace mailbox cannot silently inherit access.
         if user.get("company_google_subject") and user.company_google_subject != claims["sub"]:
             frappe.cache.delete_value("company_oauth:" + state)
-            _fail_oauth("identity")
+            _fail_oauth("identity", pending)
             return
         if not user.get("company_google_subject"):
             frappe.db.set_value("User", email, "company_google_subject", claims["sub"])

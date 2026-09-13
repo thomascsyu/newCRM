@@ -50,14 +50,17 @@ class GoogleAuthTests(unittest.TestCase):
         self.f.cache.set_value("company_oauth:state", {"binding": hashlib.sha256(b"browser-binding").hexdigest(), "nonce": "nonce", "verifier": "verifier", "redirect_to": "/crm/leads"})
         self.claims = {"email": "rep@company.test", "email_verified": True, "hd": "company.test", "nonce": "nonce", "sub": "subject"}
 
-    def callback(self, claims=None, verify_error=None):
+    def callback(self, claims=None, verify_error=None, token_response=None, token_ok=True):
         response = Mock()
-        response.json.return_value = {"id_token": "signed-token"}
+        response.ok = token_ok
+        response.json.return_value = token_response or {"id_token": "signed-token"}
         with patch.object(auth.requests, "post", return_value=response) as post, patch.object(auth.id_token, "verify_oauth2_token", return_value=claims or self.claims, side_effect=verify_error) as verify:
             inspect.unwrap(auth.callback)(code="code", state="state")
-            self.assertEqual(post.call_args.kwargs['data']['code_verifier'], 'verifier')
-            self.assertEqual(post.call_args.kwargs['data']['redirect_uri'], auth.oauth_redirect_uri("https://crm.company.test"))
-            self.assertEqual(verify.call_args.kwargs['audience'], 'client')
+            if token_ok:
+                self.assertEqual(post.call_args.kwargs['data']['code_verifier'], 'verifier')
+                self.assertEqual(post.call_args.kwargs['data']['redirect_uri'], auth.oauth_redirect_uri("https://crm.company.test"))
+                self.assertEqual(verify.call_args.kwargs['audience'], 'client')
+                self.assertEqual(verify.call_args.kwargs['clock_skew_in_seconds'], auth.OAUTH_CLOCK_SKEW_SECONDS)
 
     def test_valid_login_uses_verified_email(self):
         self.callback()
@@ -104,7 +107,33 @@ class GoogleAuthTests(unittest.TestCase):
     def test_foreign_workspace_rejected(self):
         self.callback({**self.claims, "email": "rep@other.test", "hd": "other.test"})
         self.f.local.login_manager.login_as.assert_not_called()
-        self.assertEqual(self.f.local.response.location, "/company-login?error=unverified")
+        self.assertEqual(
+            self.f.local.response.location,
+            "/company-login?error=workspace&redirect-to=%2Fcrm%2Fleads",
+        )
+
+    def test_invalid_grant_returns_to_sign_in_as_expired(self):
+        self.callback(token_ok=False, token_response={"error": "invalid_grant"})
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(
+            self.f.local.response.location,
+            "/company-login?error=expired&redirect-to=%2Fcrm%2Fleads",
+        )
+
+    def test_invalid_client_surfaces_configuration_error(self):
+        self.callback(token_ok=False, token_response={"error": "invalid_client"})
+        self.f.local.login_manager.login_as.assert_not_called()
+        self.assertEqual(
+            self.f.local.response.location,
+            "/company-login?error=config&redirect-to=%2Fcrm%2Fleads",
+        )
+
+    def test_strips_whitespace_from_google_credentials(self):
+        with patch.dict(os.environ, {
+            "GOOGLE_CLIENT_ID": "client\n",
+            "GOOGLE_CLIENT_SECRET": "secret ",
+        }, clear=False):
+            self.assertEqual(auth.configuration()[2:], ("client", "secret"))
 
     def test_disabled_user_rejected(self):
         self.user.enabled = 0
