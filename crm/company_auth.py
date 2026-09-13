@@ -290,7 +290,10 @@ def before_request():
     if request.headers.get("Authorization"):
         _deny("API token authentication is disabled for this internal CRM.")
     path = request.path.rstrip("/") or "/"
-    public = {"/", "/login", "/company-login", START_PAGE, START, CALLBACK, HEALTH, "/api/method/logout"}
+    public = {
+        "/", "/login", "/company-login", "/company_oauth", START_PAGE, START, CALLBACK, HEALTH,
+        "/api/method/logout",
+    }
     # Prevent ?cmd=... dispatch from turning a public page into a guest API gateway.
     if frappe.form_dict.get("cmd") and path in public and frappe.form_dict.cmd != "logout":
         _deny()
