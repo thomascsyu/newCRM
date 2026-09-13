@@ -1,4 +1,5 @@
 """Create/migrate precisely one site; fail startup on invalid config or migration."""
+from contextlib import chdir
 import json
 import os
 from pathlib import Path
@@ -111,6 +112,21 @@ def create_site(settings):
     raise RuntimeError("bench new-site failed after retries") from last_error
 
 
+def installed_apps():
+    """Read the existing site's app list before deciding whether to install CRM."""
+    import frappe
+    # Frappe resolves bench logs as ../logs and site logs as <site>/logs.
+    # An absolute sites_path does not change those working-directory-relative paths.
+    # Restore the bench directory before the subsequent Bench CLI commands.
+    with chdir(SITES):
+        try:
+            frappe.init(site=SITE, sites_path=str(SITES))
+            frappe.connect()
+            return frappe.get_installed_apps()
+        finally:
+            frappe.destroy()
+
+
 def main():
     settings = runtime_settings()
     if not settings["google_ready"]:
@@ -148,11 +164,7 @@ def main():
     site_config.write_text(json.dumps(saved, indent=2))
     site_config.chmod(0o600)
     # Handle interrupted initial installation without creating a second database.
-    import frappe
-    frappe.init(site=SITE, sites_path=str(SITES))
-    frappe.connect()
-    installed = frappe.get_installed_apps()
-    frappe.destroy()
+    installed = installed_apps()
     if set(installed) - {"frappe", "crm"}:
         raise RuntimeError("This image supports only the Frappe and CRM apps. Migrate CRM data to a clean site before deploying.")
     if "crm" not in installed:

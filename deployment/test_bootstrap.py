@@ -1,12 +1,18 @@
 """Startup helpers used by the Zeabur/Docker entrypoint. No database required."""
 import unittest
+from contextlib import chdir
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from unittest.mock import patch
+import sys
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from crm.security.workspace import WorkspaceIdentityError
 from deployment.bootstrap import (
     common_site_config,
     google_credentials_configured,
+    installed_apps,
     required,
     runtime_settings,
 )
@@ -90,6 +96,46 @@ class DependencyWaitTests(unittest.TestCase):
             self.assertRaisesRegex(RuntimeError, "MariaDB or Redis"),
         ):
             wait_for_dependencies(settings, missing, attempts=2, delay=0, environ={"DB_ROOT_PASSWORD": "x"})
+
+
+class InstalledAppsTests(unittest.TestCase):
+    def test_framework_logs_resolve_inside_bench_and_site(self):
+        with TemporaryDirectory() as tmp:
+            bench = Path(tmp).resolve() / "frappe-bench"
+            sites = bench / "sites"
+            site_logs = sites / "crm.internal" / "logs"
+            site_logs.mkdir(parents=True)
+            (bench / "logs").mkdir()
+
+            def connect():
+                # Frappe's logger opens both paths relative to its working directory.
+                for path in ("../logs/database.log", "crm.internal/logs/database.log"):
+                    handler = RotatingFileHandler(path)
+                    handler.close()
+
+            frappe = SimpleNamespace(init=Mock(), connect=connect,
+                get_installed_apps=Mock(return_value=["frappe", "crm"]), destroy=Mock())
+            with chdir(bench), patch.dict(sys.modules, {"frappe": frappe}), patch("deployment.bootstrap.SITES", sites):
+                self.assertEqual(installed_apps(), ["frappe", "crm"])
+                self.assertEqual(Path.cwd(), bench)
+            self.assertTrue((bench / "logs" / "database.log").exists())
+            self.assertTrue((site_logs / "database.log").exists())
+            frappe.init.assert_called_once_with(site="crm.internal", sites_path=str(sites))
+            frappe.destroy.assert_called_once_with()
+
+    def test_framework_failure_closes_context_and_restores_working_directory(self):
+        for stage in ("init", "connect", "get_installed_apps"):
+            with self.subTest(stage=stage), TemporaryDirectory() as tmp:
+                sites = Path(tmp).resolve() / "sites"
+                sites.mkdir()
+                before = Path.cwd()
+                frappe = SimpleNamespace(init=Mock(), connect=Mock(), get_installed_apps=Mock(), destroy=Mock())
+                getattr(frappe, stage).side_effect = RuntimeError("database unavailable")
+                with patch.dict(sys.modules, {"frappe": frappe}), patch("deployment.bootstrap.SITES", sites):
+                    with self.assertRaisesRegex(RuntimeError, "database unavailable"):
+                        installed_apps()
+                self.assertEqual(Path.cwd(), before)
+                frappe.destroy.assert_called_once_with()
 
 
 if __name__ == "__main__":
